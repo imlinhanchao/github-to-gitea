@@ -69,6 +69,13 @@ export class SyncService {
     return this.syncQueueService.listTasks(limit);
   }
 
+  async retryTask(taskId: number): Promise<SyncTaskEntity> {
+    this.requireConfigured();
+    const task = await this.syncQueueService.getTask(taskId);
+    const entity = await this.repositorySyncRepo.findOneByOrFail({ fullName: task.repoFullName });
+    return this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity));
+  }
+
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async syncUpdatedRepositories(): Promise<void> {
     if (!this.configService.isConfigured()) {

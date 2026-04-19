@@ -38,4 +38,9 @@ export class SyncController {
     const parsed = limit ? parseInt(limit, 10) : undefined;
     return this.syncService.listTasks(Number.isFinite(parsed) ? parsed : undefined);
   }
+
+  @Post('tasks/:id/retry')
+  retryTask(@Param('id', ParseIntPipe) id: number) {
+    return this.syncService.retryTask(id);
+  }
 }
