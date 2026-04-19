@@ -22,17 +22,18 @@
 ### 1) 启动后端
 
 ```bash
-cd /home/runner/work/github-to-gitea/github-to-gitea/backend
+cd backend
 npm install
 npm run start:dev
 ```
 
 首次启动会提示输入配置并生成 `config.json`（在仓库根目录）。
+`config.json` 包含敏感信息，请限制文件权限并避免泄露。
 
 ### 2) 启动前端
 
 ```bash
-cd /home/runner/work/github-to-gitea/github-to-gitea/frontend
+cd frontend
 npm install
 npm run dev
 ```
@@ -50,10 +51,10 @@ npm run dev
 ## 测试与构建
 
 ```bash
-cd /home/runner/work/github-to-gitea/github-to-gitea/backend
+cd backend
 npm run test
 npm run build
 
-cd /home/runner/work/github-to-gitea/github-to-gitea/frontend
+cd ../frontend
 npm run build
 ```

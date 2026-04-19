@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { RuntimeConfigService } from '../../config/config.service';
 
+const GITHUB_API_VERSION = '2022-11-28';
+
 export interface GithubRepository {
   full_name: string;
   private: boolean;
@@ -38,7 +40,7 @@ export class GithubService {
       headers: {
         Authorization: `Bearer ${config.githubToken}`,
         Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28'
+        'X-GitHub-Api-Version': GITHUB_API_VERSION
       }
     });
 
