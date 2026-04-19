@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { AddAccountDto } from '../../dto/add-account.dto';
 import { AddRepoDto } from '../../dto/add-repo.dto';
 import { UpdateBranchesDto } from '../../dto/update-branches.dto';
@@ -31,5 +31,11 @@ export class SyncController {
   @Post('repositories/:id/run')
   runOne(@Param('id', ParseIntPipe) id: number) {
     return this.syncService.syncOne(id);
+  }
+
+  @Get('tasks')
+  listTasks(@Query('limit') limit?: string) {
+    const parsed = limit ? parseInt(limit, 10) : undefined;
+    return this.syncService.listTasks(Number.isFinite(parsed) ? parsed : undefined);
   }
 }

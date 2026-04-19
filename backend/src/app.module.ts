@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AppConfig, defaultConfigPath } from './config/app-config';
 import { RepositorySyncEntity } from './entities/repository-sync.entity';
+import { SyncTaskEntity } from './entities/sync-task.entity';
 import { AppConfigModule } from './modules/config/config.module';
 import { SyncModule } from './modules/sync/sync.module';
 
@@ -14,7 +15,7 @@ function buildTypeOrmOptions(config: AppConfig | null) {
     return {
       type: 'sqlite' as const,
       database: ':memory:',
-      entities: [RepositorySyncEntity],
+      entities: [RepositorySyncEntity, SyncTaskEntity],
       synchronize: true,
     };
   }
@@ -25,7 +26,7 @@ function buildTypeOrmOptions(config: AppConfig | null) {
     username: config.dbUser,
     password: config.dbPassword,
     database: config.dbDatabase,
-    entities: [RepositorySyncEntity],
+    entities: [RepositorySyncEntity, SyncTaskEntity],
     synchronize: true,
     charset: 'utf8mb4',
     retryAttempts: 3,

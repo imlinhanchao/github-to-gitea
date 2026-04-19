@@ -14,7 +14,7 @@ describe('SyncService', () => {
       save: jest.fn().mockImplementation(async (item) => item),
     } as any;
 
-    const service = new SyncService(repo, { isConfigured: () => true } as any, {} as any, {} as any);
+    const service = new SyncService(repo, { isConfigured: () => true } as any, {} as any, {} as any, {} as any);
     const updated = await service.updateBranches(1, [' main ', 'dev', 'dev', '']);
 
     expect(updated.branches).toEqual(['main', 'dev']);
@@ -34,7 +34,7 @@ describe('SyncService', () => {
       save: jest.fn().mockImplementation(async (item) => item),
     } as any;
 
-    const service = new SyncService(repo, { isConfigured: () => true } as any, {} as any, {} as any);
+    const service = new SyncService(repo, { isConfigured: () => true } as any, {} as any, {} as any, {} as any);
     const updated = await service.updateBranches(2, [' ']);
 
     expect(updated.branches).toEqual(['master']);

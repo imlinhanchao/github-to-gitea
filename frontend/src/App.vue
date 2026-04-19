@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, computed } from 'vue';
 
 type Repo = {
   id: number;
@@ -7,6 +7,16 @@ type Repo = {
   branches: string[];
   defaultBranch: string;
   lastSyncedAt: string | null;
+};
+
+type SyncTask = {
+  id: number;
+  repoFullName: string;
+  status: 'pending' | 'running' | 'done' | 'failed';
+  error: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
 };
 
 type ConfigView = {
@@ -31,10 +41,14 @@ const configured = ref<boolean | null>(null); // null = loading
 const account = ref('');
 const repository = ref('');
 const repos = ref<Repo[]>([]);
+const tasks = ref<SyncTask[]>([]);
 const loading = ref(false);
 const showSettings = ref(false);
+const showTasks = ref(false);
 const restartNotice = ref(false);
 const saveError = ref('');
+
+let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 const form = ref<ConfigView>({
   githubToken: '',
@@ -49,13 +63,17 @@ const form = ref<ConfigView>({
   dbDatabase: 'github_to_gitea',
 });
 
+const hasActiveTasks = computed(() =>
+  tasks.value.some((t) => t.status === 'pending' || t.status === 'running'),
+);
+
 // --- helpers ---
 async function checkStatus(): Promise<void> {
   const res = await fetch(`${configApi}/status`);
   const data = await res.json() as { configured: boolean };
   configured.value = data.configured;
   if (data.configured) {
-    await refresh();
+    await Promise.all([refresh(), refreshTasks()]);
   }
 }
 
@@ -72,6 +90,35 @@ async function loadCurrentConfig(): Promise<void> {
 async function refresh(): Promise<void> {
   const res = await fetch(`${apiBase}/repositories`);
   repos.value = await res.json() as Repo[];
+}
+
+async function refreshTasks(): Promise<void> {
+  const res = await fetch(`${apiBase}/tasks?limit=50`);
+  if (res.ok) {
+    tasks.value = await res.json() as SyncTask[];
+  }
+}
+
+function startPolling(): void {
+  if (pollTimer !== null) return;
+  pollTimer = setInterval(async () => {
+    await refreshTasks();
+    // Also refresh repo list to pick up updated lastSyncedAt
+    if (hasActiveTasks.value) {
+      await refresh();
+    }
+    if (!hasActiveTasks.value) {
+      stopPolling();
+      await refresh();
+    }
+  }, 2000);
+}
+
+function stopPolling(): void {
+  if (pollTimer !== null) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
 }
 
 async function saveConfig(): Promise<void> {
@@ -107,8 +154,9 @@ async function addAccount(): Promise<void> {
     body: JSON.stringify({ account: account.value.trim() }),
   });
   account.value = '';
-  await refresh();
   loading.value = false;
+  await Promise.all([refresh(), refreshTasks()]);
+  startPolling();
 }
 
 async function addRepository(): Promise<void> {
@@ -120,8 +168,9 @@ async function addRepository(): Promise<void> {
     body: JSON.stringify({ fullName: repository.value.trim() }),
   });
   repository.value = '';
-  await refresh();
   loading.value = false;
+  await Promise.all([refresh(), refreshTasks()]);
+  startPolling();
 }
 
 async function updateBranches(repo: Repo, value: string): Promise<void> {
@@ -135,14 +184,30 @@ async function updateBranches(repo: Repo, value: string): Promise<void> {
 }
 
 async function syncNow(repo: Repo): Promise<void> {
-  loading.value = true;
   await fetch(`${apiBase}/repositories/${repo.id}/run`, { method: 'POST' });
-  await refresh();
-  loading.value = false;
+  await refreshTasks();
+  startPolling();
+}
+
+function statusLabel(status: SyncTask['status']): string {
+  return { pending: '等待中', running: '运行中', done: '完成', failed: '失败' }[status];
+}
+
+function statusClass(status: SyncTask['status']): string {
+  return {
+    pending: 'bg-yellow-100 text-yellow-800',
+    running: 'bg-blue-100 text-blue-800',
+    done: 'bg-green-100 text-green-800',
+    failed: 'bg-red-100 text-red-800',
+  }[status];
 }
 
 onMounted(() => {
   checkStatus();
+});
+
+onUnmounted(() => {
+  stopPolling();
 });
 </script>
 
@@ -226,7 +291,38 @@ onMounted(() => {
         <h1 class="text-xl font-bold">GitHub → Gitea 仓库同步</h1>
         <p class="text-sm text-gray-500">添加账号或仓库后自动同步；支持为每个仓库设置分支列表（默认主分支）。</p>
       </div>
-      <button class="rounded border px-3 py-1 text-sm text-gray-600" @click="openSettings">⚙ 配置</button>
+      <div class="flex gap-2">
+        <button class="rounded border px-3 py-1 text-sm text-gray-600 relative" @click="showTasks = !showTasks">
+          📋 任务
+          <span v-if="hasActiveTasks" class="absolute -top-1 -right-1 inline-block w-2 h-2 rounded-full bg-blue-500"></span>
+        </button>
+        <button class="rounded border px-3 py-1 text-sm text-gray-600" @click="openSettings">⚙ 配置</button>
+      </div>
+    </section>
+
+    <!-- Task queue panel -->
+    <section v-if="showTasks" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-semibold">同步任务队列</h2>
+        <button class="text-sm text-gray-500 hover:underline" @click="refreshTasks">刷新</button>
+      </div>
+      <div class="space-y-2 max-h-72 overflow-y-auto">
+        <div v-for="task in tasks" :key="task.id" class="rounded border border-gray-100 p-3 text-sm">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-medium truncate">{{ task.repoFullName }}</span>
+            <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClass(task.status)">
+              {{ statusLabel(task.status) }}
+            </span>
+          </div>
+          <p v-if="task.error" class="mt-1 text-xs text-red-600 break-all">{{ task.error }}</p>
+          <p class="mt-1 text-xs text-gray-400">
+            创建：{{ task.createdAt }}
+            <template v-if="task.startedAt"> · 开始：{{ task.startedAt }}</template>
+            <template v-if="task.finishedAt"> · 结束：{{ task.finishedAt }}</template>
+          </p>
+        </div>
+        <p v-if="tasks.length === 0" class="text-sm text-gray-500">暂无任务</p>
+      </div>
     </section>
 
     <section class="grid gap-4 md:grid-cols-2">
@@ -256,7 +352,7 @@ onMounted(() => {
               <p class="font-medium">{{ repo.fullName }}</p>
               <p class="text-xs text-gray-500">上次同步：{{ repo.lastSyncedAt ?? '未同步' }}</p>
             </div>
-            <button class="rounded bg-green-600 px-3 py-1 text-white" :disabled="loading" @click="syncNow(repo)">立即同步</button>
+            <button class="rounded bg-green-600 px-3 py-1 text-white" @click="syncNow(repo)">立即同步</button>
           </div>
           <label class="mt-2 block text-xs text-gray-600">分支（逗号分隔）</label>
           <input
