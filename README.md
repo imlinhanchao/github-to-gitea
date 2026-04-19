@@ -10,7 +10,7 @@
 2. 每天定时检查仓库是否有更新（`pushed_at`），有更新则自动触发同步。
 3. 在 Gitea 自动创建与 GitHub 仓库 owner 同名账号，并创建同名仓库。
    - 每个仓库可配置多个同步分支，默认主分支（仓库默认分支）。
-4. 项目启动时首次交互式采集配置（GitHub Token、Gitea Token、管理员账号密码、数据库路径），保存到 `config.json`。
+4. 项目启动后，通过网页进行初始化配置（GitHub Token、Gitea Token、管理员账号密码、数据库路径），配置保存到 `config.json`。
 
 ## 目录结构
 
@@ -27,7 +27,9 @@ npm install
 npm run start:dev
 ```
 
-首次启动会提示输入配置并生成 `config.json`（在仓库根目录）。
+首次启动后端后，访问前端页面（`http://localhost:5173`），系统自动检测配置是否存在：
+- 若 `config.json` 不存在，将显示初始化配置页面，填写后保存即可进入主界面。
+- 若已配置，主界面右上角 **⚙ 配置** 按钮可随时修改配置。
 `config.json` 包含敏感信息，请限制文件权限并避免泄露。
 
 ### 2) 启动前端
@@ -41,6 +43,14 @@ npm run dev
 访问 `http://localhost:5173`。
 
 ## API 概览
+
+### 配置
+
+- `GET /config/status` 查询是否已完成配置（`{ configured: boolean }`）
+- `GET /config` 获取当前配置（敏感字段显示为 `***`）
+- `POST /config` 保存配置
+
+### 同步
 
 - `POST /sync/account` 添加 GitHub 账号并同步其仓库
 - `POST /sync/repository` 添加单仓库并同步
