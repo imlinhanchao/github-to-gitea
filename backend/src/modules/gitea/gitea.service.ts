@@ -10,6 +10,22 @@ import { GithubRepository } from '../github/github.service';
 export class GiteaService {
   constructor(private readonly configService: RuntimeConfigService) {}
 
+  private encodeRepoHttpsPath(fullName: string): string {
+    const [owner, repo, ...rest] = fullName.split('/');
+    if (!owner || !repo || rest.length > 0) {
+      throw new Error(`Invalid repository full name: ${fullName}`);
+    }
+    return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}.git`;
+  }
+
+  private getGiteaGitBaseUrl(baseUrl: string): string {
+    const url = new URL(baseUrl);
+    url.pathname = '';
+    url.search = '';
+    url.hash = '';
+    return url.toString().replace(/\/$/, '');
+  }
+
   private async request(path: string, init?: RequestInit): Promise<Response> {
     const config = this.configService.loadConfig();
     const response = await fetch(`${config.giteaBaseUrl}/api/v1${path}`, {
@@ -23,15 +39,23 @@ export class GiteaService {
     return response;
   }
 
-  private async runGit(args: string[], cwd: string): Promise<void> {
+  private async runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Promise<void> {
     await new Promise<void>((resolve, reject) => {
-      const p = spawn('git', args, { cwd, stdio: 'ignore' });
+      let stderr = '';
+      const p = spawn('git', args, {
+        cwd,
+        stdio: ['ignore', 'ignore', 'pipe'],
+        env: { ...process.env, ...(env || {}) },
+      });
+      p.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
       p.on('exit', (code) => {
         if (code === 0) {
           resolve();
           return;
         }
-        reject(new Error(`git ${args.join(' ')} failed with code ${code}`));
+        reject(new Error(`git ${args.join(' ')} failed with code ${code}: ${stderr.trim()}`));
       });
       p.on('error', reject);
     });
@@ -92,19 +116,24 @@ export class GiteaService {
     const workspace = mkdtempSync(join(tmpdir(), 'github-to-gitea-'));
     try {
       const repoDir = join(workspace, 'repo.git');
-      const githubUrl = repo.clone_url.replace('https://', `https://oauth2:${config.githubToken}@`);
-      const giteaHttp = config.giteaBaseUrl.replace(/\/$/, '').replace('/api/v1', '');
-      const giteaUrl = `${giteaHttp}/${repo.owner.login}/${repo.name}.git`.replace('https://', `https://oauth2:${config.giteaToken}@`);
+      const githubUrl = repo.clone_url;
+      const giteaHttp = this.getGiteaGitBaseUrl(config.giteaBaseUrl);
+      const giteaUrl = `${giteaHttp}/${this.encodeRepoHttpsPath(`${repo.owner.login}/${repo.name}`)}`;
 
-      await this.runGit(['clone', '--bare', githubUrl, repoDir], workspace);
+      await this.runGit(['-c', `http.extraHeader=Authorization: Bearer ${config.githubToken}`, 'clone', '--bare', githubUrl, repoDir], workspace);
       await this.runGit(['remote', 'add', 'gitea', giteaUrl], repoDir);
       await this.runGit(['fetch', '--all', '--prune'], repoDir);
 
       for (const branch of branches) {
-        await this.runGit(['push', 'gitea', `refs/remotes/origin/${branch}:refs/heads/${branch}`, '--force'], repoDir);
+        await this.runGit(
+          ['-c', `http.extraHeader=Authorization: token ${config.giteaToken}`, 'push', 'gitea', `refs/remotes/origin/${branch}:refs/heads/${branch}`, '--force'],
+          repoDir,
+        );
       }
     } finally {
-      rmSync(workspace, { recursive: true, force: true });
+      try {
+        rmSync(workspace, { recursive: true, force: true });
+      } catch {}
     }
   }
 }

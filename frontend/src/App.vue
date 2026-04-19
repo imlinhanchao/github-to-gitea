@@ -9,7 +9,7 @@ type Repo = {
   lastSyncedAt: string | null;
 };
 
-const apiBase = 'http://localhost:3001/sync';
+const apiBase = `${import.meta.env.VITE_API_BASE ?? 'http://localhost:3001'}/sync`;
 const account = ref('');
 const repository = ref('');
 const repos = ref<Repo[]>([]);

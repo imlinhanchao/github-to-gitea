@@ -29,5 +29,5 @@ export async function ensureConfigFile(configPath = defaultConfigPath): Promise<
     dbPath: await ask('请输入数据库 sqlite 文件路径', './data.sqlite')
   };
 
-  writeFileSync(fullPath, `${JSON.stringify(config, null, 2)}\n`, 'utf-8');
+  writeFileSync(fullPath, `${JSON.stringify(config, null, 2)}\n`, { encoding: 'utf-8', mode: 0o600 });
 }

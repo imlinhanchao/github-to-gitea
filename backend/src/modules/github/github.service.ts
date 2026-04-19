@@ -17,9 +17,24 @@ export interface GithubRepository {
 export class GithubService {
   constructor(private readonly configService: RuntimeConfigService) {}
 
+  private assertRelativePath(path: string): void {
+    if (!path.startsWith('/') || path.includes('://') || path.includes('..')) {
+      throw new Error('Invalid GitHub API path');
+    }
+  }
+
+  private encodeRepoFullName(fullName: string): string {
+    const [owner, repo, ...rest] = fullName.split('/');
+    if (!owner || !repo || rest.length > 0) {
+      throw new Error(`Invalid repository full name: ${fullName}`);
+    }
+    return `${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  }
+
   private async request<T>(path: string): Promise<T> {
+    this.assertRelativePath(path);
     const config = this.configService.loadConfig();
-    const response = await fetch(`https://api.github.com${path}`, {
+    const response = await fetch(new URL(path, 'https://api.github.com'), {
       headers: {
         Authorization: `Bearer ${config.githubToken}`,
         Accept: 'application/vnd.github+json',
@@ -47,16 +62,18 @@ export class GithubService {
   }
 
   async listReposForAccount(account: string): Promise<GithubRepository[]> {
+    const normalizedAccount = account.trim();
+    const encodedAccount = encodeURIComponent(normalizedAccount);
     const accessible = await this.listAllRepos('/user/repos?visibility=all&affiliation=owner,collaborator,organization_member');
-    const matched = accessible.filter((repo) => repo.owner.login.toLowerCase() === account.toLowerCase());
+    const matched = accessible.filter((repo) => repo.owner.login.toLowerCase() === normalizedAccount.toLowerCase());
     if (matched.length > 0) {
       return matched;
     }
 
-    return this.listAllRepos(`/users/${account}/repos?type=all`);
+    return this.listAllRepos(`/users/${encodedAccount}/repos?type=all`);
   }
 
   getRepo(fullName: string): Promise<GithubRepository> {
-    return this.request<GithubRepository>(`/repos/${fullName}`);
+    return this.request<GithubRepository>(`/repos/${this.encodeRepoFullName(fullName)}`);
   }
 }
