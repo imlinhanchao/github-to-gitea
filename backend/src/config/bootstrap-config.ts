@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { resolve } from 'node:path';
@@ -30,4 +30,7 @@ export async function ensureConfigFile(configPath = defaultConfigPath): Promise<
   };
 
   writeFileSync(fullPath, `${JSON.stringify(config, null, 2)}\n`, { encoding: 'utf-8', mode: 0o600 });
+  try {
+    chmodSync(fullPath, 0o600);
+  } catch {}
 }
