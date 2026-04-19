@@ -26,9 +26,9 @@ describe('GithubService', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].full_name).toBe('alice/a');
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&per_page=100&page=1'),
-      expect.any(Object),
+    const calledUrls = fetchMock.mock.calls.map((call: any[]) => String(call[0]));
+    expect(calledUrls).toContain(
+      'https://api.github.com/user/repos?visibility=all&affiliation=owner,collaborator,organization_member&per_page=100&page=1',
     );
   });
 
@@ -47,9 +47,7 @@ describe('GithubService', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].full_name).toBe('charlie/c');
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining('/users/charlie/repos?type=all&per_page=100&page=1'),
-      expect.any(Object),
-    );
+    const calledUrls = fetchMock.mock.calls.map((call: any[]) => String(call[0]));
+    expect(calledUrls).toContain('https://api.github.com/users/charlie/repos?type=all&per_page=100&page=1');
   });
 });
