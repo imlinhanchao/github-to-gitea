@@ -9,7 +9,11 @@ export interface ConfigView {
   giteaBaseUrl: string;
   giteaAdminUsername: string;
   giteaAdminPassword: string;
-  dbPath: string;
+  dbHost: string;
+  dbPort: number;
+  dbUser: string;
+  dbPassword: string;
+  dbDatabase: string;
 }
 
 @Controller('config')
@@ -33,7 +37,11 @@ export class ConfigController {
       giteaBaseUrl: config.giteaBaseUrl,
       giteaAdminUsername: config.giteaAdminUsername,
       giteaAdminPassword: config.giteaAdminPassword ? '***' : '',
-      dbPath: config.dbPath,
+      dbHost: config.dbHost,
+      dbPort: config.dbPort,
+      dbUser: config.dbUser,
+      dbPassword: config.dbPassword ? '***' : '',
+      dbDatabase: config.dbDatabase,
     };
   }
 
@@ -47,7 +55,11 @@ export class ConfigController {
       giteaAdminUsername: dto.giteaAdminUsername,
       giteaAdminPassword:
         dto.giteaAdminPassword === '***' && existing ? existing.giteaAdminPassword : dto.giteaAdminPassword,
-      dbPath: dto.dbPath ?? existing?.dbPath ?? './data.sqlite',
+      dbHost: dto.dbHost ?? existing?.dbHost ?? 'localhost',
+      dbPort: dto.dbPort ?? existing?.dbPort ?? 3306,
+      dbUser: dto.dbUser ?? existing?.dbUser ?? 'root',
+      dbPassword: dto.dbPassword === '***' && existing ? existing.dbPassword : (dto.dbPassword ?? ''),
+      dbDatabase: dto.dbDatabase ?? existing?.dbDatabase ?? 'github_to_gitea',
     };
     this.configService.saveConfig(config);
     return { configured: true };

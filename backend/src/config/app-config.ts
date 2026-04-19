@@ -4,7 +4,11 @@ export interface AppConfig {
   giteaBaseUrl: string;
   giteaAdminUsername: string;
   giteaAdminPassword: string;
-  dbPath: string;
+  dbHost: string;
+  dbPort: number;
+  dbUser: string;
+  dbPassword: string;
+  dbDatabase: string;
 }
 
 export const defaultConfigPath = 'config.json';

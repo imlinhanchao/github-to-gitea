@@ -15,7 +15,11 @@ type ConfigView = {
   giteaBaseUrl: string;
   giteaAdminUsername: string;
   giteaAdminPassword: string;
-  dbPath: string;
+  dbHost: string;
+  dbPort: number;
+  dbUser: string;
+  dbPassword: string;
+  dbDatabase: string;
 };
 
 const apiRoot = import.meta.env.VITE_API_BASE ?? 'http://localhost:3001';
@@ -29,6 +33,7 @@ const repository = ref('');
 const repos = ref<Repo[]>([]);
 const loading = ref(false);
 const showSettings = ref(false);
+const restartNotice = ref(false);
 const saveError = ref('');
 
 const form = ref<ConfigView>({
@@ -37,7 +42,11 @@ const form = ref<ConfigView>({
   giteaBaseUrl: 'http://localhost:3000',
   giteaAdminUsername: 'gitea_admin',
   giteaAdminPassword: '',
-  dbPath: './data.sqlite',
+  dbHost: 'localhost',
+  dbPort: 3306,
+  dbUser: 'root',
+  dbPassword: '',
+  dbDatabase: 'github_to_gitea',
 });
 
 // --- helpers ---
@@ -80,6 +89,7 @@ async function saveConfig(): Promise<void> {
   }
   configured.value = true;
   showSettings.value = false;
+  restartNotice.value = true;
   await refresh();
 }
 
@@ -172,8 +182,24 @@ onMounted(() => {
           <input v-model="form.giteaAdminPassword" type="password" class="mt-1 w-full rounded border px-3 py-2" :placeholder="configured ? '已设置，留空则不修改' : ''" autocomplete="new-password" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-gray-700">SQLite 数据库路径</label>
-          <input v-model="form.dbPath" type="text" class="mt-1 w-full rounded border px-3 py-2" placeholder="./data.sqlite" />
+          <label class="block text-sm font-medium text-gray-700">MySQL 主机</label>
+          <input v-model="form.dbHost" type="text" class="mt-1 w-full rounded border px-3 py-2" placeholder="localhost" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">MySQL 端口</label>
+          <input v-model.number="form.dbPort" type="number" class="mt-1 w-full rounded border px-3 py-2" placeholder="3306" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">MySQL 用户名</label>
+          <input v-model="form.dbUser" type="text" class="mt-1 w-full rounded border px-3 py-2" placeholder="root" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">MySQL 密码</label>
+          <input v-model="form.dbPassword" type="password" class="mt-1 w-full rounded border px-3 py-2" :placeholder="configured ? '已设置，留空则不修改' : ''" autocomplete="new-password" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">MySQL 数据库名</label>
+          <input v-model="form.dbDatabase" type="text" class="mt-1 w-full rounded border px-3 py-2" placeholder="github_to_gitea" />
         </div>
       </div>
 
@@ -190,6 +216,11 @@ onMounted(() => {
 
   <!-- Main sync UI -->
   <main v-else class="mx-auto max-w-4xl p-6 space-y-6">
+    <section v-if="restartNotice" class="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800 flex items-center justify-between">
+      <span>配置已保存。若修改了 MySQL 连接信息，需重启后端服务后生效。</span>
+      <button class="ml-4 text-yellow-600 hover:underline" @click="restartNotice = false">✕</button>
+    </section>
+
     <section class="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div>
         <h1 class="text-xl font-bold">GitHub → Gitea 仓库同步</h1>

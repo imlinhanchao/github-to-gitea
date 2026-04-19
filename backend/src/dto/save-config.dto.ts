@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class SaveConfigDto {
   @IsString()
@@ -23,5 +23,23 @@ export class SaveConfigDto {
 
   @IsString()
   @IsOptional()
-  dbPath?: string;
+  dbHost?: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(65535)
+  @IsOptional()
+  dbPort?: number;
+
+  @IsString()
+  @IsOptional()
+  dbUser?: string;
+
+  @IsString()
+  @IsOptional()
+  dbPassword?: string;
+
+  @IsString()
+  @IsOptional()
+  dbDatabase?: string;
 }
