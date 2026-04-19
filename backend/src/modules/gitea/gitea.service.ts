@@ -141,14 +141,9 @@ esac
         GIT_SYNC_TOKEN: config.githubToken,
       });
       await this.runGit(['remote', 'add', 'gitea', giteaUrl], repoDir);
-      await this.runGit(['fetch', 'origin', '--prune'], repoDir, {
-        GIT_ASKPASS: githubAskPass,
-        GIT_TERMINAL_PROMPT: '0',
-        GIT_SYNC_TOKEN: config.githubToken,
-      });
 
       for (const branch of branches) {
-        await this.runGit(['push', 'gitea', `refs/remotes/origin/${branch}:refs/heads/${branch}`, '--force'], repoDir, {
+        await this.runGit(['push', 'gitea', `refs/heads/${branch}:refs/heads/${branch}`, '--force'], repoDir, {
           GIT_ASKPASS: giteaAskPass,
           GIT_TERMINAL_PROMPT: '0',
           GIT_SYNC_TOKEN: config.giteaToken,
