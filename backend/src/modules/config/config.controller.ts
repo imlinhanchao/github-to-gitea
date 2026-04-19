@@ -14,6 +14,7 @@ export interface ConfigView {
   dbUser: string;
   dbPassword: string;
   dbDatabase: string;
+  webhookSecret: string;
 }
 
 @Controller('config')
@@ -42,6 +43,7 @@ export class ConfigController {
       dbUser: config.dbUser,
       dbPassword: config.dbPassword ? '***' : '',
       dbDatabase: config.dbDatabase,
+      webhookSecret: config.webhookSecret ? '***' : '',
     };
   }
 
@@ -60,6 +62,7 @@ export class ConfigController {
       dbUser: dto.dbUser ?? existing?.dbUser ?? 'root',
       dbPassword: dto.dbPassword === '***' && existing ? existing.dbPassword : (dto.dbPassword ?? ''),
       dbDatabase: dto.dbDatabase ?? existing?.dbDatabase ?? 'github_to_gitea',
+      webhookSecret: dto.webhookSecret === '***' && existing ? existing.webhookSecret : (dto.webhookSecret ?? existing?.webhookSecret),
     };
     this.configService.saveConfig(config);
     return { configured: true };

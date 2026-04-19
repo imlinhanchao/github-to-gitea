@@ -30,6 +30,7 @@ type ConfigView = {
   dbUser: string;
   dbPassword: string;
   dbDatabase: string;
+  webhookSecret: string;
 };
 
 const apiRoot = import.meta.env.VITE_API_BASE ?? 'http://localhost:3001';
@@ -47,6 +48,8 @@ const showSettings = ref(false);
 const showTasks = ref(false);
 const restartNotice = ref(false);
 const saveError = ref('');
+type RepoFilter = 'all' | 'never' | 'month' | 'year' | 'synced';
+const repoFilter = ref<RepoFilter>('all');
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -61,6 +64,7 @@ const form = ref<ConfigView>({
   dbUser: 'root',
   dbPassword: '',
   dbDatabase: 'github_to_gitea',
+  webhookSecret: '',
 });
 
 const hasActiveTasks = computed(() =>
@@ -77,6 +81,20 @@ const sortedTasks = computed(() =>
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   }),
 );
+
+const filteredRepos = computed(() => {
+  const now = Date.now();
+  const ONE_MONTH = 30 * 24 * 60 * 60 * 1000;
+  const ONE_YEAR = 365 * 24 * 60 * 60 * 1000;
+  return repos.value.filter((r) => {
+    if (repoFilter.value === 'all') return true;
+    if (repoFilter.value === 'never') return r.lastSyncedAt === null;
+    if (repoFilter.value === 'synced') return r.lastSyncedAt !== null;
+    if (repoFilter.value === 'month') return r.lastSyncedAt !== null && now - new Date(r.lastSyncedAt).getTime() <= ONE_MONTH;
+    if (repoFilter.value === 'year') return r.lastSyncedAt !== null && now - new Date(r.lastSyncedAt).getTime() <= ONE_YEAR;
+    return true;
+  });
+});
 
 // --- helpers ---
 async function checkStatus(): Promise<void> {
@@ -283,6 +301,11 @@ onUnmounted(() => {
           <label class="block text-sm font-medium text-gray-700">MySQL 数据库名</label>
           <input v-model="form.dbDatabase" type="text" class="mt-1 w-full rounded border px-3 py-2" placeholder="github_to_gitea" />
         </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700">GitHub Webhook 密钥（可选）</label>
+          <input v-model="form.webhookSecret" type="password" class="mt-1 w-full rounded border px-3 py-2" :placeholder="configured ? '已设置，留空则不修改' : '留空则不验证签名'" autocomplete="new-password" />
+          <p class="mt-1 text-xs text-gray-400">Webhook 地址：<code>{{ apiRoot }}/sync/webhook/github</code></p>
+        </div>
       </div>
 
       <p v-if="saveError" class="text-sm text-red-600">{{ saveError }}</p>
@@ -368,15 +391,26 @@ onUnmounted(() => {
     </section>
 
     <section class="rounded-lg border p-4">
-      <h2 class="font-semibold">已配置同步仓库</h2>
-      <div class="mt-3 space-y-3">
-        <div v-for="repo in repos" :key="repo.id" class="rounded border border-gray-200 p-3">
+      <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <h2 class="font-semibold">已配置同步仓库</h2>
+        <div class="flex flex-wrap gap-1 text-xs">
+          <button
+            v-for="(label, key) in { all: '全部', never: '未同步', month: '一个月内', year: '一年内', synced: '已同步' }"
+            :key="key"
+            class="rounded-full px-3 py-1 border"
+            :class="repoFilter === key ? 'bg-blue-600 text-white border-blue-600' : 'text-gray-600 border-gray-300'"
+            @click="repoFilter = key as RepoFilter"
+          >{{ label }}</button>
+        </div>
+      </div>
+      <div class="mt-1 space-y-3">
+        <div v-for="repo in filteredRepos" :key="repo.id" class="rounded border border-gray-200 p-3">
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="font-medium">{{ repo.fullName }}</p>
               <p class="text-xs text-gray-500">上次同步：{{ repo.lastSyncedAt ?? '未同步' }}</p>
             </div>
-            <button class="rounded bg-green-600 px-3 py-1 text-white" @click="syncNow(repo)">立即同步</button>
+            <button class="rounded bg-green-600 px-3 py-1 text-white text-sm" @click="syncNow(repo)">加入同步队列</button>
           </div>
           <label class="mt-2 block text-xs text-gray-600">分支（逗号分隔）</label>
           <input
@@ -385,7 +419,7 @@ onUnmounted(() => {
             @change="updateBranches(repo, ($event.target as HTMLInputElement).value)"
           />
         </div>
-        <p v-if="repos.length === 0" class="text-sm text-gray-500">暂无仓库</p>
+        <p v-if="filteredRepos.length === 0" class="text-sm text-gray-500">{{ repos.length === 0 ? '暂无仓库' : '无匹配仓库' }}</p>
       </div>
     </section>
   </main>
