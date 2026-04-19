@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RepositorySyncEntity } from '../../entities/repository-sync.entity';
+import { RuntimeConfigService } from '../../config/config.service';
 import { GithubService } from '../github/github.service';
 import { GiteaService } from '../gitea/gitea.service';
 
@@ -11,9 +12,16 @@ export class SyncService {
   constructor(
     @InjectRepository(RepositorySyncEntity)
     private readonly repositorySyncRepo: Repository<RepositorySyncEntity>,
+    private readonly configService: RuntimeConfigService,
     private readonly githubService: GithubService,
     private readonly giteaService: GiteaService,
   ) {}
+
+  private requireConfigured(): void {
+    if (!this.configService.isConfigured()) {
+      throw new ServiceUnavailableException('App is not configured yet. Please complete setup via the web UI.');
+    }
+  }
 
   private normalizeBranches(input: string[], fallback: string): string[] {
     const cleaned = input.map((branch) => branch.trim()).filter(Boolean);
@@ -24,6 +32,7 @@ export class SyncService {
   }
 
   async addAccount(account: string): Promise<RepositorySyncEntity[]> {
+    this.requireConfigured();
     const repos = await this.githubService.listReposForAccount(account);
     const result: RepositorySyncEntity[] = [];
     for (const repo of repos) {
@@ -33,6 +42,7 @@ export class SyncService {
   }
 
   async addRepository(fullName: string): Promise<RepositorySyncEntity> {
+    this.requireConfigured();
     return this.upsertAndSync(fullName);
   }
 
@@ -43,6 +53,7 @@ export class SyncService {
   }
 
   async syncOne(id: number): Promise<RepositorySyncEntity> {
+    this.requireConfigured();
     const target = await this.repositorySyncRepo.findOneByOrFail({ id });
     return this.syncEntity(target);
   }
@@ -53,6 +64,9 @@ export class SyncService {
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async syncUpdatedRepositories(): Promise<void> {
+    if (!this.configService.isConfigured()) {
+      return;
+    }
     const all = await this.repositorySyncRepo.find();
     for (const entity of all) {
       const githubRepo = await this.githubService.getRepo(entity.fullName);
