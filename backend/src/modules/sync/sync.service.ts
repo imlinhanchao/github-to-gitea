@@ -3,9 +3,11 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { RepositorySyncEntity } from '../../entities/repository-sync.entity';
+import { SyncTaskEntity } from '../../entities/sync-task.entity';
 import { RuntimeConfigService } from '../../config/config.service';
 import { GithubService } from '../github/github.service';
 import { GiteaService } from '../gitea/gitea.service';
+import { SyncQueueService } from './sync-queue.service';
 
 @Injectable()
 export class SyncService {
@@ -15,6 +17,7 @@ export class SyncService {
     private readonly configService: RuntimeConfigService,
     private readonly githubService: GithubService,
     private readonly giteaService: GiteaService,
+    private readonly syncQueueService: SyncQueueService,
   ) {}
 
   private requireConfigured(): void {
@@ -31,19 +34,19 @@ export class SyncService {
     return [fallback || 'main'];
   }
 
-  async addAccount(account: string): Promise<RepositorySyncEntity[]> {
+  async addAccount(account: string): Promise<SyncTaskEntity[]> {
     this.requireConfigured();
     const repos = await this.githubService.listReposForAccount(account);
-    const result: RepositorySyncEntity[] = [];
+    const tasks: SyncTaskEntity[] = [];
     for (const repo of repos) {
-      result.push(await this.upsertAndSync(repo.full_name));
+      tasks.push(await this.enqueueUpsertAndSync(repo.full_name));
     }
-    return result;
+    return tasks;
   }
 
-  async addRepository(fullName: string): Promise<RepositorySyncEntity> {
+  async addRepository(fullName: string): Promise<SyncTaskEntity> {
     this.requireConfigured();
-    return this.upsertAndSync(fullName);
+    return this.enqueueUpsertAndSync(fullName);
   }
 
   async updateBranches(id: number, branches: string[]): Promise<RepositorySyncEntity> {
@@ -52,14 +55,18 @@ export class SyncService {
     return this.repositorySyncRepo.save(target);
   }
 
-  async syncOne(id: number): Promise<RepositorySyncEntity> {
+  async syncOne(id: number): Promise<SyncTaskEntity> {
     this.requireConfigured();
     const target = await this.repositorySyncRepo.findOneByOrFail({ id });
-    return this.syncEntity(target);
+    return this.syncQueueService.enqueue(target.fullName, () => this.syncEntity(target));
   }
 
   async list(): Promise<RepositorySyncEntity[]> {
     return this.repositorySyncRepo.find({ order: { fullName: 'ASC' } });
+  }
+
+  async listTasks(limit?: number): Promise<SyncTaskEntity[]> {
+    return this.syncQueueService.listTasks(limit);
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
@@ -72,12 +79,14 @@ export class SyncService {
       const githubRepo = await this.githubService.getRepo(entity.fullName);
       const pushedAt = githubRepo.pushed_at;
       if (!entity.lastGithubPushedAt || new Date(pushedAt) > new Date(entity.lastGithubPushedAt)) {
-        await this.syncEntity(entity);
+        const target = entity;
+        await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(target));
       }
     }
   }
 
-  private async upsertAndSync(fullName: string): Promise<RepositorySyncEntity> {
+  private async enqueueUpsertAndSync(fullName: string): Promise<SyncTaskEntity> {
+    // Ensure the entity exists in the DB before enqueuing
     let entity = await this.repositorySyncRepo.findOne({ where: { fullName } });
     if (!entity) {
       const info = await this.githubService.getRepo(fullName);
@@ -93,7 +102,8 @@ export class SyncService {
       });
       entity = await this.repositorySyncRepo.save(entity);
     }
-    return this.syncEntity(entity);
+    const saved = entity;
+    return this.syncQueueService.enqueue(fullName, () => this.syncEntity(saved));
   }
 
   private async syncEntity(entity: RepositorySyncEntity): Promise<RepositorySyncEntity> {
