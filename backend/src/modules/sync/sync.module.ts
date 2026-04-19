@@ -8,10 +8,11 @@ import { AppConfigModule } from '../config/config.module';
 import { SyncController } from './sync.controller';
 import { SyncService } from './sync.service';
 import { SyncQueueService } from './sync-queue.service';
+import { WebhookController } from './webhook.controller';
 
 @Module({
   imports: [TypeOrmModule.forFeature([RepositorySyncEntity, SyncTaskEntity]), AppConfigModule],
-  controllers: [SyncController],
+  controllers: [SyncController, WebhookController],
   providers: [SyncService, SyncQueueService, GithubService, GiteaService],
 })
 export class SyncModule {}

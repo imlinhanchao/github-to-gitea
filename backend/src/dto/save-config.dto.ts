@@ -42,4 +42,8 @@ export class SaveConfigDto {
   @IsString()
   @IsOptional()
   dbDatabase?: string;
+
+  @IsString()
+  @IsOptional()
+  webhookSecret?: string;
 }

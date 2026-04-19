@@ -1,7 +1,7 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { RepositorySyncEntity } from '../../entities/repository-sync.entity';
 import { SyncTaskEntity } from '../../entities/sync-task.entity';
 import { RuntimeConfigService } from '../../config/config.service';
@@ -10,7 +10,7 @@ import { GiteaService } from '../gitea/gitea.service';
 import { SyncQueueService } from './sync-queue.service';
 
 @Injectable()
-export class SyncService {
+export class SyncService implements OnModuleInit {
   constructor(
     @InjectRepository(RepositorySyncEntity)
     private readonly repositorySyncRepo: Repository<RepositorySyncEntity>,
@@ -19,6 +19,17 @@ export class SyncService {
     private readonly giteaService: GiteaService,
     private readonly syncQueueService: SyncQueueService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    if (!this.configService.isConfigured()) {
+      return;
+    }
+    const unsynced = await this.repositorySyncRepo.find({ where: { lastSyncedAt: IsNull() } });
+    for (const entity of unsynced) {
+      const target = entity;
+      await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(target));
+    }
+  }
 
   private requireConfigured(): void {
     if (!this.configService.isConfigured()) {
@@ -73,6 +84,15 @@ export class SyncService {
     this.requireConfigured();
     const task = await this.syncQueueService.getTask(taskId);
     const entity = await this.repositorySyncRepo.findOneByOrFail({ fullName: task.repoFullName });
+    return this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity));
+  }
+
+  async syncByFullName(fullName: string): Promise<SyncTaskEntity | null> {
+    this.requireConfigured();
+    const entity = await this.repositorySyncRepo.findOne({ where: { fullName } });
+    if (!entity) {
+      return null;
+    }
     return this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity));
   }
 

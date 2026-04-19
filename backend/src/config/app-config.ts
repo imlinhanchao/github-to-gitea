@@ -9,6 +9,7 @@ export interface AppConfig {
   dbUser: string;
   dbPassword: string;
   dbDatabase: string;
+  webhookSecret?: string;
 }
 
 export const defaultConfigPath = 'config.json';
