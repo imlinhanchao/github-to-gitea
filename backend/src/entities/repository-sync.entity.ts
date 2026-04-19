@@ -20,8 +20,8 @@ export class RepositorySyncEntity {
   @Column({ default: 'main' })
   defaultBranch!: string;
 
-  @Column({ type: 'simple-json', default: '["main"]' })
-  branches!: string[];
+  @Column({ type: 'simple-json' })
+  branches: string[] = ['master'];
 
   @Column({ type: 'datetime', nullable: true })
   lastGithubPushedAt!: string | null;
