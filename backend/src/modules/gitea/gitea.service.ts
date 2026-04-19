@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -20,10 +20,23 @@ export class GiteaService {
 
   private getGiteaGitBaseUrl(baseUrl: string): string {
     const url = new URL(baseUrl);
-    url.pathname = '';
+    url.pathname = url.pathname.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '');
     url.search = '';
     url.hash = '';
     return url.toString().replace(/\/$/, '');
+  }
+
+  private createAskPassScript(workspace: string, fileName: string): string {
+    const scriptPath = join(workspace, fileName);
+    const script = `#!/bin/sh
+case "$1" in
+  *Username*) printf "%s" "oauth2" ;;
+  *) printf "%s" "$GIT_SYNC_TOKEN" ;;
+esac
+`;
+    writeFileSync(scriptPath, script, { encoding: 'utf-8' });
+    chmodSync(scriptPath, 0o700);
+    return scriptPath;
   }
 
   private async request(path: string, init?: RequestInit): Promise<Response> {
@@ -119,16 +132,23 @@ export class GiteaService {
       const githubUrl = repo.clone_url;
       const giteaHttp = this.getGiteaGitBaseUrl(config.giteaBaseUrl);
       const giteaUrl = `${giteaHttp}/${this.encodeRepoHttpsPath(`${repo.owner.login}/${repo.name}`)}`;
+      const githubAskPass = this.createAskPassScript(workspace, 'github-askpass.sh');
+      const giteaAskPass = this.createAskPassScript(workspace, 'gitea-askpass.sh');
 
-      await this.runGit(['-c', `http.extraHeader=Authorization: Bearer ${config.githubToken}`, 'clone', '--bare', githubUrl, repoDir], workspace);
+      await this.runGit(['clone', '--bare', githubUrl, repoDir], workspace, {
+        GIT_ASKPASS: githubAskPass,
+        GIT_TERMINAL_PROMPT: '0',
+        GIT_SYNC_TOKEN: config.githubToken,
+      });
       await this.runGit(['remote', 'add', 'gitea', giteaUrl], repoDir);
       await this.runGit(['fetch', '--all', '--prune'], repoDir);
 
       for (const branch of branches) {
-        await this.runGit(
-          ['-c', `http.extraHeader=Authorization: token ${config.giteaToken}`, 'push', 'gitea', `refs/remotes/origin/${branch}:refs/heads/${branch}`, '--force'],
-          repoDir,
-        );
+        await this.runGit(['push', 'gitea', `refs/remotes/origin/${branch}:refs/heads/${branch}`, '--force'], repoDir, {
+          GIT_ASKPASS: giteaAskPass,
+          GIT_TERMINAL_PROMPT: '0',
+          GIT_SYNC_TOKEN: config.giteaToken,
+        });
       }
     } finally {
       try {
