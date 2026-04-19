@@ -67,6 +67,17 @@ const hasActiveTasks = computed(() =>
   tasks.value.some((t) => t.status === 'pending' || t.status === 'running'),
 );
 
+const STATUS_ORDER: Record<SyncTask['status'], number> = { running: 0, failed: 1, pending: 2, done: 3 };
+
+const sortedTasks = computed(() =>
+  [...tasks.value].sort((a, b) => {
+    const diff = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    if (diff !== 0) return diff;
+    // Within the same status, newest first
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  }),
+);
+
 // --- helpers ---
 async function checkStatus(): Promise<void> {
   const res = await fetch(`${configApi}/status`);
@@ -189,6 +200,12 @@ async function syncNow(repo: Repo): Promise<void> {
   startPolling();
 }
 
+async function retryTask(task: SyncTask): Promise<void> {
+  await fetch(`${apiBase}/tasks/${task.id}/retry`, { method: 'POST' });
+  await refreshTasks();
+  startPolling();
+}
+
 function statusLabel(status: SyncTask['status']): string {
   return { pending: '等待中', running: '运行中', done: '完成', failed: '失败' }[status];
 }
@@ -307,12 +324,19 @@ onUnmounted(() => {
         <button class="text-sm text-gray-500 hover:underline" @click="refreshTasks">刷新</button>
       </div>
       <div class="space-y-2 max-h-72 overflow-y-auto">
-        <div v-for="task in tasks" :key="task.id" class="rounded border border-gray-100 p-3 text-sm">
+        <div v-for="task in sortedTasks" :key="task.id" class="rounded border border-gray-100 p-3 text-sm">
           <div class="flex items-center justify-between gap-2">
             <span class="font-medium truncate">{{ task.repoFullName }}</span>
-            <span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClass(task.status)">
-              {{ statusLabel(task.status) }}
-            </span>
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                v-if="task.status === 'failed'"
+                class="rounded bg-orange-500 px-2 py-0.5 text-xs text-white hover:bg-orange-600"
+                @click="retryTask(task)"
+              >重新同步</button>
+              <span class="rounded-full px-2 py-0.5 text-xs font-medium" :class="statusClass(task.status)">
+                {{ statusLabel(task.status) }}
+              </span>
+            </div>
           </div>
           <p v-if="task.error" class="mt-1 text-xs text-red-600 break-all">{{ task.error }}</p>
           <p class="mt-1 text-xs text-gray-400">

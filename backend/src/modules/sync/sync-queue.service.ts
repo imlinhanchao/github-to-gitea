@@ -43,6 +43,10 @@ export class SyncQueueService implements OnModuleInit {
     return this.taskRepo.find({ order: { createdAt: 'DESC' }, take: limit });
   }
 
+  async getTask(id: number): Promise<SyncTaskEntity> {
+    return this.taskRepo.findOneByOrFail({ id });
+  }
+
   private async processNext(): Promise<void> {
     if (this.running || this.queue.length === 0) {
       return;
