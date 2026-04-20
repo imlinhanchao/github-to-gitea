@@ -8,15 +8,17 @@
     "build": "vite build"
   },
   "dependencies": {
-    "vue": "^3.5.13"
+    "@iconify/vue": "^5.0.0",
+    "vue": "^3.5.13",
+    "vue-router": "^5.0.4"
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.102",
-    "@unocss/preset-icons": "^66.6.8",
-    "@unocss/reset": "^66.0.0",
     "@vitejs/plugin-vue": "^5.2.1",
+    "autoprefixer": "^10.5.0",
     "daisyui": "^4.12.23",
-    "unocss": "^66.0.0",
+    "postcss": "^8.5.10",
+    "tailwindcss": "^3.4.19",
     "vite": "^6.4.2"
   }
 }

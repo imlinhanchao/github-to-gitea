@@ -31,4 +31,7 @@ export class RepositorySyncEntity {
 
   @Column({ default: true })
   enabled!: boolean;
+
+  @Column({ default: false })
+  webhookConfigured!: boolean;
 }
