@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { SyncTaskEntity } from '../../entities/sync-task.entity';
 
 interface QueueItem {
@@ -48,7 +48,7 @@ export class SyncQueueService implements OnModuleInit {
   }
 
   async clearTasks(): Promise<void> {
-    await this.taskRepo.delete([{ status: 'done' }, { status: 'failed' }]);
+    await this.taskRepo.delete({ status: In(['done', 'failed']) });
   }
 
   async listFailedTasks(): Promise<SyncTaskEntity[]> {
