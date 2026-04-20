@@ -40,12 +40,33 @@ export class GithubService {
       headers: {
         Authorization: `Bearer ${config.githubToken}`,
         Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': GITHUB_API_VERSION
-      }
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      },
     });
 
     if (!response.ok) {
       throw new Error(`GitHub API request failed: ${response.status} ${path}`);
+    }
+
+    return response.json() as Promise<T>;
+  }
+
+  private async mutate<T>(method: string, path: string, body: unknown): Promise<T> {
+    this.assertRelativePath(path);
+    const config = this.configService.loadConfig();
+    const response = await fetch(new URL(path, 'https://api.github.com'), {
+      method,
+      headers: {
+        Authorization: `Bearer ${config.githubToken}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'X-GitHub-Api-Version': GITHUB_API_VERSION,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API request failed: ${response.status} ${method} ${path}`);
     }
 
     return response.json() as Promise<T>;
@@ -77,5 +98,35 @@ export class GithubService {
 
   getRepo(fullName: string): Promise<GithubRepository> {
     return this.request<GithubRepository>(`/repos/${this.encodeRepoFullName(fullName)}`);
+  }
+
+  async setupWebhook(fullName: string, webhookUrl: string, secret?: string): Promise<void> {
+    const encoded = this.encodeRepoFullName(fullName);
+    interface Hook { id: number; config: { url: string }; active: boolean }
+    const hooks = await this.request<Hook[]>(`/repos/${encoded}/hooks`);
+    const existing = hooks.find((h) => h.config.url === webhookUrl);
+    const hookConfig: Record<string, string> = {
+      url: webhookUrl,
+      content_type: 'json',
+      insecure_ssl: '0',
+    };
+    if (secret) {
+      hookConfig.secret = secret;
+    }
+    if (existing) {
+      if (!existing.active) {
+        await this.mutate<unknown>('PATCH', `/repos/${encoded}/hooks/${existing.id}`, {
+          active: true,
+          config: hookConfig,
+        });
+      }
+    } else {
+      await this.mutate<unknown>('POST', `/repos/${encoded}/hooks`, {
+        name: 'web',
+        active: true,
+        events: ['push'],
+        config: hookConfig,
+      });
+    }
   }
 }

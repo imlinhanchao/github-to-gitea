@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { AddAccountDto } from '../../dto/add-account.dto';
 import { AddRepoDto } from '../../dto/add-repo.dto';
 import { SetEnabledDto } from '../../dto/set-enabled.dto';
+import { SetupWebhookDto } from '../../dto/setup-webhook.dto';
 import { UpdateBranchesDto } from '../../dto/update-branches.dto';
 import { SyncService } from './sync.service';
 
@@ -39,6 +40,12 @@ export class SyncController {
     return this.syncService.syncOne(id);
   }
 
+  @Post('repositories/:id/webhook')
+  @HttpCode(204)
+  setupWebhook(@Param('id', ParseIntPipe) id: number, @Body() dto: SetupWebhookDto) {
+    return this.syncService.setupWebhook(id, dto.webhookUrl);
+  }
+
   @Get('tasks')
   listTasks(@Query('limit') limit?: string) {
     const parsed = limit ? parseInt(limit, 10) : undefined;
@@ -48,6 +55,12 @@ export class SyncController {
   @Post('tasks/:id/retry')
   retryTask(@Param('id', ParseIntPipe) id: number) {
     return this.syncService.retryTask(id);
+  }
+
+  @Delete('tasks/:id')
+  @HttpCode(204)
+  cancelTask(@Param('id', ParseIntPipe) id: number) {
+    return this.syncService.cancelTask(id);
   }
 
   @Delete('tasks')
