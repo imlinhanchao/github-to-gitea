@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import AppLayout from '../layouts/AppLayout.vue';
 import {
+  apiFetch,
   apiBase,
   webhookUrl,
   repos,
@@ -54,7 +55,7 @@ const FILTERS: { key: RepoFilter; label: string }[] = [
 async function addAccount() {
   if (!account.value.trim()) return;
   loading.value = true;
-  await fetch(`${apiBase}/account`, {
+  await apiFetch(`${apiBase}/account`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ account: account.value.trim(), webhookUrl: webhookUrl.value }),
@@ -68,7 +69,7 @@ async function addAccount() {
 async function addRepository() {
   if (!repository.value.trim()) return;
   loading.value = true;
-  await fetch(`${apiBase}/repository`, {
+  await apiFetch(`${apiBase}/repository`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ fullName: repository.value.trim(), webhookUrl: webhookUrl.value }),
@@ -84,7 +85,7 @@ async function updateBranches(repo: Repo, value: string) {
     .split(',')
     .map((b) => b.trim())
     .filter(Boolean);
-  await fetch(`${apiBase}/repositories/${repo.id}/branches`, {
+  await apiFetch(`${apiBase}/repositories/${repo.id}/branches`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ branches }),
@@ -93,7 +94,7 @@ async function updateBranches(repo: Repo, value: string) {
 }
 
 async function toggleEnabled(repo: Repo) {
-  await fetch(`${apiBase}/repositories/${repo.id}/enabled`, {
+  await apiFetch(`${apiBase}/repositories/${repo.id}/enabled`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ enabled: !repo.enabled }),
@@ -102,7 +103,7 @@ async function toggleEnabled(repo: Repo) {
 }
 
 async function syncNow(repo: Repo) {
-  await fetch(`${apiBase}/repositories/${repo.id}/run`, { method: 'POST' });
+  await apiFetch(`${apiBase}/repositories/${repo.id}/run`, { method: 'POST' });
   await refreshTasks();
   startPolling();
 }
@@ -113,12 +114,12 @@ async function removeFromQueue(repo: Repo) {
     await refreshTasks();
     return;
   }
-  await fetch(`${apiBase}/tasks/${task.id}`, { method: 'DELETE' });
+  await apiFetch(`${apiBase}/tasks/${task.id}`, { method: 'DELETE' });
   await refreshTasks();
 }
 
 async function setupWebhook(repo: Repo) {
-  const res = await fetch(`${apiBase}/repositories/${repo.id}/webhook`, {
+  const res = await apiFetch(`${apiBase}/repositories/${repo.id}/webhook`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ webhookUrl: webhookUrl.value }),

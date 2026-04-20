@@ -1,0 +1,24 @@
+{
+  "name": "github-to-gitea",
+  "version": "0.0.1",
+  "description": "A tool to sync repositories from GitHub to Gitea.",
+  "main": "index.js",
+  "scripts": {
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "cd backend && npm install && npm run build",
+    "build:frontend": "cd frontend && npm install && npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imlinhanchao/github-to-gitea.git"
+  },
+  "keywords": [
+    "github"
+  ],
+  "author": "Hancel.Lin",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/imlinhanchao/github-to-gitea/issues"
+  },
+  "homepage": "https://github.com/imlinhanchao/github-to-gitea#readme"
+}

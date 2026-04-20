@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post } from '@nestjs/common';
 import { AppConfig } from '../../config/app-config';
 import { RuntimeConfigService } from '../../config/config.service';
 import { SaveConfigDto } from '../../dto/save-config.dto';
+import { Public } from '../auth/public.decorator';
 
 export interface ConfigView {
   githubToken: string;
@@ -22,6 +23,7 @@ export class ConfigController {
   constructor(private readonly configService: RuntimeConfigService) {}
 
   @Get('status')
+  @Public()
   getStatus(): { configured: boolean } {
     return { configured: this.configService.isConfigured() };
   }

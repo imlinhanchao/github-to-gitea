@@ -31,3 +31,9 @@ export type ConfigView = {
   dbDatabase: string;
   webhookSecret: string;
 };
+
+export type AuthStatus = {
+  configured: boolean;
+  authenticated: boolean;
+  username: string | null;
+};
