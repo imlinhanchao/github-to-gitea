@@ -45,19 +45,19 @@ export class SyncService implements OnModuleInit {
     return [fallback || 'main'];
   }
 
-  async addAccount(account: string): Promise<SyncTaskEntity[]> {
+  async addAccount(account: string, webhookUrl?: string): Promise<SyncTaskEntity[]> {
     this.requireConfigured();
     const repos = await this.githubService.listReposForAccount(account);
     const tasks: SyncTaskEntity[] = [];
     for (const repo of repos) {
-      tasks.push(await this.enqueueUpsertAndSync(repo.full_name));
+      tasks.push(await this.enqueueUpsertAndSync(repo.full_name, webhookUrl));
     }
     return tasks;
   }
 
-  async addRepository(fullName: string): Promise<SyncTaskEntity> {
+  async addRepository(fullName: string, webhookUrl?: string): Promise<SyncTaskEntity> {
     this.requireConfigured();
-    return this.enqueueUpsertAndSync(fullName);
+    return this.enqueueUpsertAndSync(fullName, webhookUrl);
   }
 
   async updateBranches(id: number, branches: string[]): Promise<RepositorySyncEntity> {
@@ -150,9 +150,10 @@ export class SyncService implements OnModuleInit {
     }
   }
 
-  private async enqueueUpsertAndSync(fullName: string): Promise<SyncTaskEntity> {
+  private async enqueueUpsertAndSync(fullName: string, webhookUrl?: string): Promise<SyncTaskEntity> {
     // Ensure the entity exists in the DB before enqueuing
     let entity = await this.repositorySyncRepo.findOne({ where: { fullName } });
+    const isNew = !entity;
     if (!entity) {
       const info = await this.githubService.getRepo(fullName);
       entity = this.repositorySyncRepo.create({
@@ -167,8 +168,22 @@ export class SyncService implements OnModuleInit {
       });
       entity = await this.repositorySyncRepo.save(entity);
     }
+    if (isNew && webhookUrl && !entity.webhookConfigured) {
+      await this.trySetupWebhook(entity, webhookUrl);
+    }
     const saved = entity;
     return this.syncQueueService.enqueue(fullName, () => this.syncEntity(saved));
+  }
+
+  private async trySetupWebhook(entity: RepositorySyncEntity, webhookUrl: string): Promise<void> {
+    try {
+      const config = this.configService.getConfigOrNull();
+      await this.githubService.setupWebhook(entity.fullName, webhookUrl, config?.webhookSecret || undefined);
+      entity.webhookConfigured = true;
+      await this.repositorySyncRepo.save(entity);
+    } catch {
+      // Silently ignore webhook setup failures
+    }
   }
 
   private async syncEntity(entity: RepositorySyncEntity): Promise<RepositorySyncEntity> {

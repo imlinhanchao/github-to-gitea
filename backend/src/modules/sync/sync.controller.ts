@@ -12,12 +12,12 @@ export class SyncController {
 
   @Post('account')
   addAccount(@Body() dto: AddAccountDto) {
-    return this.syncService.addAccount(dto.account);
+    return this.syncService.addAccount(dto.account, dto.webhookUrl);
   }
 
   @Post('repository')
   addRepository(@Body() dto: AddRepoDto) {
-    return this.syncService.addRepository(dto.fullName);
+    return this.syncService.addRepository(dto.fullName, dto.webhookUrl);
   }
 
   @Get('repositories')

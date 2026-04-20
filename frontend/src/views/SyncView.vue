@@ -57,7 +57,7 @@ async function addAccount() {
   await fetch(`${apiBase}/account`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account: account.value.trim() }),
+    body: JSON.stringify({ account: account.value.trim(), webhookUrl: webhookUrl.value }),
   });
   account.value = '';
   loading.value = false;
@@ -71,7 +71,7 @@ async function addRepository() {
   await fetch(`${apiBase}/repository`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fullName: repository.value.trim() }),
+    body: JSON.stringify({ fullName: repository.value.trim(), webhookUrl: webhookUrl.value }),
   });
   repository.value = '';
   loading.value = false;
