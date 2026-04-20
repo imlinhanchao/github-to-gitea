@@ -257,10 +257,13 @@ async function syncNow(repo: Repo): Promise<void> {
 async function removeFromQueue(repo: Repo): Promise<void> {
   // Find the pending task for this repo and cancel it
   const task = tasks.value.find((t) => t.repoFullName === repo.fullName && t.status === 'pending');
-  if (task) {
-    await fetch(`${apiBase}/tasks/${task.id}`, { method: 'DELETE' });
+  if (!task) {
+    // Task may have already started or completed — refresh to sync UI state
     await refreshTasks();
+    return;
   }
+  await fetch(`${apiBase}/tasks/${task.id}`, { method: 'DELETE' });
+  await refreshTasks();
 }
 
 async function retryTask(task: SyncTask): Promise<void> {
