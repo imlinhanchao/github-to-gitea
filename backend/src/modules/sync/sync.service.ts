@@ -24,7 +24,7 @@ export class SyncService implements OnModuleInit {
     if (!this.configService.isConfigured()) {
       return;
     }
-    const unsynced = await this.repositorySyncRepo.find({ where: { lastSyncedAt: IsNull() } });
+    const unsynced = await this.repositorySyncRepo.find({ where: { lastSyncedAt: IsNull(), enabled: true } });
     for (const entity of unsynced) {
       const target = entity;
       await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(target));
@@ -72,6 +72,12 @@ export class SyncService implements OnModuleInit {
     return this.syncQueueService.enqueue(target.fullName, () => this.syncEntity(target));
   }
 
+  async setEnabled(id: number, enabled: boolean): Promise<RepositorySyncEntity> {
+    const target = await this.repositorySyncRepo.findOneByOrFail({ id });
+    target.enabled = enabled;
+    return this.repositorySyncRepo.save(target);
+  }
+
   async list(): Promise<RepositorySyncEntity[]> {
     return this.repositorySyncRepo.find({ order: { fullName: 'ASC' } });
   }
@@ -108,7 +114,7 @@ export class SyncService implements OnModuleInit {
 
   async syncByFullName(fullName: string): Promise<SyncTaskEntity | null> {
     this.requireConfigured();
-    const entity = await this.repositorySyncRepo.findOne({ where: { fullName } });
+    const entity = await this.repositorySyncRepo.findOne({ where: { fullName, enabled: true } });
     if (!entity) {
       return null;
     }
@@ -120,7 +126,7 @@ export class SyncService implements OnModuleInit {
     if (!this.configService.isConfigured()) {
       return;
     }
-    const all = await this.repositorySyncRepo.find();
+    const all = await this.repositorySyncRepo.find({ where: { enabled: true } });
     for (const entity of all) {
       const githubRepo = await this.githubService.getRepo(entity.fullName);
       const pushedAt = githubRepo.pushed_at;

@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { AddAccountDto } from '../../dto/add-account.dto';
 import { AddRepoDto } from '../../dto/add-repo.dto';
+import { SetEnabledDto } from '../../dto/set-enabled.dto';
 import { UpdateBranchesDto } from '../../dto/update-branches.dto';
 import { SyncService } from './sync.service';
 
@@ -26,6 +27,11 @@ export class SyncController {
   @Patch('repositories/:id/branches')
   updateBranches(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBranchesDto) {
     return this.syncService.updateBranches(id, dto.branches);
+  }
+
+  @Patch('repositories/:id/enabled')
+  setEnabled(@Param('id', ParseIntPipe) id: number, @Body() dto: SetEnabledDto) {
+    return this.syncService.setEnabled(id, dto.enabled);
   }
 
   @Post('repositories/:id/run')

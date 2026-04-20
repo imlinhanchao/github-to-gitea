@@ -28,4 +28,7 @@ export class RepositorySyncEntity {
 
   @Column({ type: 'datetime', nullable: true })
   lastSyncedAt!: string | null;
+
+  @Column({ default: true })
+  enabled!: boolean;
 }
