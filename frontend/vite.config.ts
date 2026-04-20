@@ -5,6 +5,14 @@ import UnoCSS from 'unocss/vite';
 export default defineConfig({
   plugins: [vue(), UnoCSS()],
   server: {
-    port: 5173,
+    allowedHosts: true,
+    port: 5174,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    }
   },
 });
