@@ -253,7 +253,7 @@ onUnmounted(() => {
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <span class="font-semibold text-sm truncate">{{ repo.fullName }}</span>
                       <div v-if="repo.webhookConfigured" class="tooltip tooltip-right" data-tip="Webhook 已配置">
-                        <Icon icon="lucide:webhook" class="w-3.5 h-3.5 text-success" />
+                        <Icon icon="lucide:webhook" class="w-3.5 h-3.5 text-info" />
                       </div>
                     </div>
                     <p class="text-xs text-base-content/50 mt-0.5">
@@ -288,7 +288,7 @@ onUnmounted(() => {
                     >
                       <button
                         class="btn btn-ghost btn-xs btn-circle"
-                        :class="repo.webhookConfigured ? 'text-success' : 'text-base-content/40'"
+                        :class="repo.webhookConfigured ? 'text-info' : 'text-base-content/40'"
                         :disabled="!repo.enabled"
                         @click="setupWebhook(repo)"
                       >

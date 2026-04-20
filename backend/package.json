@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "node dist/main.js",
-    "start:dev": "ts-node src/main.ts",
+    "dev": "ts-node src/main.ts",
     "build": "tsc -p tsconfig.build.json",
     "test": "jest --runInBand"
   },

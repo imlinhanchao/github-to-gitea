@@ -4,7 +4,7 @@ import { RouterLink } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { hasActiveTasks } from '../composables/useApi';
 
-const currentTheme = ref(localStorage.getItem('theme') ?? 'light');
+const currentTheme = ref(localStorage.getItem('theme') ?? 'cmyk');
 
 function applyTheme(theme: string) {
   document.documentElement.setAttribute('data-theme', theme);
@@ -13,7 +13,7 @@ function applyTheme(theme: string) {
 }
 
 function toggleTheme() {
-  applyTheme(currentTheme.value === 'dark' ? 'light' : 'dark');
+  applyTheme(currentTheme.value === 'halloween' ? 'cmyk' : 'halloween');
 }
 
 onMounted(() => {
@@ -57,9 +57,9 @@ onMounted(() => {
             </button>
           </RouterLink>
         </div>
-        <div class="tooltip tooltip-bottom" :data-tip="currentTheme === 'dark' ? '切换亮色' : '切换暗色'">
+        <div class="tooltip tooltip-bottom" :data-tip="currentTheme === 'halloween' ? '切换亮色' : '切换万圣节主题'">
           <button class="btn btn-ghost btn-sm btn-circle" @click="toggleTheme">
-            <Icon :icon="currentTheme === 'dark' ? 'lucide:sun' : 'lucide:moon'" class="w-5 h-5" />
+            <Icon :icon="currentTheme === 'halloween' ? 'lucide:sun' : 'lucide:moon'" class="w-5 h-5" />
           </button>
         </div>
       </div>
