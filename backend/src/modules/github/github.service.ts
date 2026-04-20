@@ -26,7 +26,7 @@ export class GithubService {
   constructor(private readonly configService: RuntimeConfigService) {}
 
   private assertRelativePath(path: string): void {
-    if (!path.startsWith('/') || path.includes('://') || path.includes('..')) {
+    if (!path.startsWith('/') || path.includes('://') || path.includes('..') || path.includes('\0')) {
       throw new Error('Invalid GitHub API path');
     }
   }
