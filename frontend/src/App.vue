@@ -33,7 +33,7 @@ type ConfigView = {
   webhookSecret: string;
 };
 
-const apiRoot = import.meta.env.VITE_API_BASE ?? 'http://localhost:3001';
+const apiRoot = import.meta.env.VITE_API_BASE ?? './api';
 const apiBase = `${apiRoot}/sync`;
 const configApi = `${apiRoot}/config`;
 
