@@ -6,6 +6,10 @@
 
 <p align="center">一个用于将 GitHub 仓库同步到 Gitea 的可视化工具。</p>
 
+<p align="center">
+   中文 | <a href="./README.en.md">English</a>
+</p>
+
 基于 Vue 3 前端和 NestJS 后端构建，支持通过 Web 页面完成初始化配置、管理员登录、仓库导入、分支同步和 Webhook 回调处理。项目适合个人迁移、团队镜像、私有代码备份和自建 Gitea 场景。
 
 ## 简介
