@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img"
+  width="1em" height="1em" viewBox="0 0 24 24" class="iconify iconify--lucide w-5 h-5 text-primary">
+  <style>
+    /* 默认（亮色） */
+    .mark { stroke: #111; }
+
+    /* 暗色模式下反转 */
+    @media (prefers-color-scheme: dark) {
+      .mark { stroke: #fff; }
+    }
+  </style>
+  <g fill="none" class="mark" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+    <circle cx="18" cy="18" r="3"></circle>
+    <circle cx="6" cy="6" r="3"></circle>
+    <path d="M6 21V9a9 9 0 0 0 9 9"></path>
+  </g>
+</svg>
