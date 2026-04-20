@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { AddAccountDto } from '../../dto/add-account.dto';
 import { AddRepoDto } from '../../dto/add-repo.dto';
 import { UpdateBranchesDto } from '../../dto/update-branches.dto';
@@ -42,5 +42,15 @@ export class SyncController {
   @Post('tasks/:id/retry')
   retryTask(@Param('id', ParseIntPipe) id: number) {
     return this.syncService.retryTask(id);
+  }
+
+  @Delete('tasks')
+  clearTasks() {
+    return this.syncService.clearTasks();
+  }
+
+  @Post('tasks/retry-failed')
+  retryAllFailed() {
+    return this.syncService.retryAllFailed();
   }
 }

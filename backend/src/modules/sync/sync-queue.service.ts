@@ -47,6 +47,14 @@ export class SyncQueueService implements OnModuleInit {
     return this.taskRepo.findOneByOrFail({ id });
   }
 
+  async clearTasks(): Promise<void> {
+    await this.taskRepo.delete([{ status: 'done' }, { status: 'failed' }]);
+  }
+
+  async listFailedTasks(): Promise<SyncTaskEntity[]> {
+    return this.taskRepo.find({ where: { status: 'failed' }, order: { createdAt: 'DESC' } });
+  }
+
   private async processNext(): Promise<void> {
     if (this.running || this.queue.length === 0) {
       return;
