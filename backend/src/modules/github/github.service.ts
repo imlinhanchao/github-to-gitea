@@ -15,6 +15,12 @@ export interface GithubRepository {
   name: string;
 }
 
+interface GithubHook {
+  id: number;
+  config: { url: string };
+  active: boolean;
+}
+
 @Injectable()
 export class GithubService {
   constructor(private readonly configService: RuntimeConfigService) {}
@@ -102,8 +108,7 @@ export class GithubService {
 
   async setupWebhook(fullName: string, webhookUrl: string, secret?: string): Promise<void> {
     const encoded = this.encodeRepoFullName(fullName);
-    interface Hook { id: number; config: { url: string }; active: boolean }
-    const hooks = await this.request<Hook[]>(`/repos/${encoded}/hooks`);
+    const hooks = await this.request<GithubHook[]>(`/repos/${encoded}/hooks`);
     const existing = hooks.find((h) => h.config.url === webhookUrl);
     const hookConfig: Record<string, string> = {
       url: webhookUrl,

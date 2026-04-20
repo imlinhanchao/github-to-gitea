@@ -54,7 +54,7 @@ export class SyncQueueService implements OnModuleInit {
   async cancelPendingTask(id: number): Promise<void> {
     const task = await this.taskRepo.findOneByOrFail({ id });
     if (task.status !== 'pending') {
-      throw new Error('Only pending tasks can be cancelled');
+      throw new Error(`Task ${id} cannot be cancelled because its status is '${task.status}' (only 'pending' tasks can be cancelled)`);
     }
     const idx = this.queue.findIndex((item) => item.taskId === id);
     if (idx !== -1) {
