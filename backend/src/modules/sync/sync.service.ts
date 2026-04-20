@@ -121,6 +121,8 @@ export class SyncService implements OnModuleInit {
     const entity = await this.repositorySyncRepo.findOneByOrFail({ id });
     const config = this.configService.getConfigOrNull();
     await this.githubService.setupWebhook(entity.fullName, webhookUrl, config?.webhookSecret || undefined);
+    entity.webhookConfigured = true;
+    await this.repositorySyncRepo.save(entity);
   }
 
   async syncByFullName(fullName: string): Promise<SyncTaskEntity | null> {
