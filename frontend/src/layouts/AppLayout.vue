@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { RouterLink } from 'vue-router';
 import { Icon } from '@iconify/vue';
-import { hasActiveTasks } from '../composables/useApi';
+import { authUsername, hasActiveTasks, logout } from '../composables/useApi';
 
 const currentTheme = ref(localStorage.getItem('theme') ?? 'cmyk');
+const router = useRouter();
 
 function applyTheme(theme: string) {
   document.documentElement.setAttribute('data-theme', theme);
@@ -14,6 +16,11 @@ function applyTheme(theme: string) {
 
 function toggleTheme() {
   applyTheme(currentTheme.value === 'halloween' ? 'cmyk' : 'halloween');
+}
+
+async function signOut(): Promise<void> {
+  await logout();
+  await router.push('/login');
 }
 
 onMounted(() => {
@@ -50,12 +57,18 @@ onMounted(() => {
       </div>
 
       <div class="navbar-end gap-1">
+        <span v-if="authUsername" class="hidden md:inline text-sm text-base-content/60 mr-2">{{ authUsername }}</span>
         <div class="tooltip tooltip-bottom" data-tip="设置">
           <RouterLink to="/settings">
             <button class="btn btn-ghost btn-sm btn-circle">
               <Icon icon="lucide:settings" class="w-5 h-5" />
             </button>
           </RouterLink>
+        </div>
+        <div class="tooltip tooltip-bottom" data-tip="退出登录">
+          <button class="btn btn-ghost btn-sm btn-circle" @click="signOut">
+            <Icon icon="lucide:log-out" class="w-5 h-5" />
+          </button>
         </div>
         <div class="tooltip tooltip-bottom" :data-tip="currentTheme === 'halloween' ? '切换亮色' : '切换万圣节主题'">
           <button class="btn btn-ghost btn-sm btn-circle" @click="toggleTheme">

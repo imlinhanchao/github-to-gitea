@@ -3,6 +3,7 @@ import { onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import AppLayout from '../layouts/AppLayout.vue';
 import {
+  apiFetch,
   apiBase,
   tasks,
   sortedTasks,
@@ -16,23 +17,23 @@ import {
 import type { SyncTask } from '../types';
 
 async function retryTask(task: SyncTask) {
-  await fetch(`${apiBase}/tasks/${task.id}/retry`, { method: 'POST' });
+  await apiFetch(`${apiBase}/tasks/${task.id}/retry`, { method: 'POST' });
   await refreshTasks();
   startPolling();
 }
 
 async function cancelTask(task: SyncTask) {
-  await fetch(`${apiBase}/tasks/${task.id}`, { method: 'DELETE' });
+  await apiFetch(`${apiBase}/tasks/${task.id}`, { method: 'DELETE' });
   await refreshTasks();
 }
 
 async function clearTasks() {
-  await fetch(`${apiBase}/tasks`, { method: 'DELETE' });
+  await apiFetch(`${apiBase}/tasks`, { method: 'DELETE' });
   await refreshTasks();
 }
 
 async function retryAllFailed() {
-  await fetch(`${apiBase}/tasks/retry-failed`, { method: 'POST' });
+  await apiFetch(`${apiBase}/tasks/retry-failed`, { method: 'POST' });
   await refreshTasks();
   startPolling();
 }

@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import AppLayout from '../layouts/AppLayout.vue';
-import { configApi, configured, webhookUrl, refresh } from '../composables/useApi';
+import { apiFetch, authUsername, authenticated, configApi, configured, stopPolling, webhookUrl } from '../composables/useApi';
 import type { ConfigView } from '../types';
 
 const router = useRouter();
@@ -26,7 +26,7 @@ const form = ref<ConfigView>({
 });
 
 async function loadCurrentConfig() {
-  const res = await fetch(configApi);
+  const res = await apiFetch(configApi);
   if (res.ok) {
     const data = (await res.json()) as ConfigView | null;
     if (data) form.value = { ...data };
@@ -36,7 +36,7 @@ async function loadCurrentConfig() {
 async function saveConfig() {
   saveError.value = '';
   loading.value = true;
-  const res = await fetch(configApi, {
+  const res = await apiFetch(configApi, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(form.value),
@@ -46,17 +46,16 @@ async function saveConfig() {
     saveError.value = `保存失败 (${res.status})，请检查输入内容。`;
     return;
   }
-  const wasConfigured = configured.value;
   configured.value = true;
+  authenticated.value = false;
+  authUsername.value = null;
+  stopPolling();
   restartNotice.value = true;
-  if (wasConfigured) {
-    await refresh();
-  }
-  router.push('/');
+  router.push('/login');
 }
 
 onMounted(async () => {
-  if (configured.value) {
+  if (configured.value && authenticated.value) {
     await loadCurrentConfig();
   }
 });

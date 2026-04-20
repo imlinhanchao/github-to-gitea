@@ -1,7 +1,5 @@
-backend/node_modules/
-backend/dist/
 *.tsbuildinfo
-frontend/node_modules/
-frontend/dist/
+node_modules
 *.sqlite
-config.json
+config*.json
+dist

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { existsSync } from 'node:fs';
@@ -6,6 +7,8 @@ import { resolve } from 'node:path';
 import { AppConfig, defaultConfigPath } from './config/app-config';
 import { RepositorySyncEntity } from './entities/repository-sync.entity';
 import { SyncTaskEntity } from './entities/sync-task.entity';
+import { AppAuthGuard } from './modules/auth/auth.guard';
+import { AuthModule } from './modules/auth/auth.module';
 import { AppConfigModule } from './modules/config/config.module';
 import { SyncModule } from './modules/sync/sync.module';
 
@@ -53,7 +56,14 @@ function buildTypeOrmOptions(config: AppConfig | null) {
       },
     }),
     AppConfigModule,
+    AuthModule,
     SyncModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: AppAuthGuard,
+    },
   ],
 })
 export class AppModule {}
