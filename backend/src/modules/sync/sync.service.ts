@@ -87,6 +87,25 @@ export class SyncService implements OnModuleInit {
     return this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity));
   }
 
+  async clearTasks(): Promise<void> {
+    await this.syncQueueService.clearTasks();
+  }
+
+  async retryAllFailed(): Promise<SyncTaskEntity[]> {
+    this.requireConfigured();
+    const failedTasks = await this.syncQueueService.listFailedTasks();
+    const seen = new Set<string>();
+    const results: SyncTaskEntity[] = [];
+    for (const task of failedTasks) {
+      if (seen.has(task.repoFullName)) continue;
+      seen.add(task.repoFullName);
+      const entity = await this.repositorySyncRepo.findOne({ where: { fullName: task.repoFullName } });
+      if (!entity) continue;
+      results.push(await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity)));
+    }
+    return results;
+  }
+
   async syncByFullName(fullName: string): Promise<SyncTaskEntity | null> {
     this.requireConfigured();
     const entity = await this.repositorySyncRepo.findOne({ where: { fullName } });

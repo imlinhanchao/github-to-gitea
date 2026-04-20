@@ -71,6 +71,8 @@ const hasActiveTasks = computed(() =>
   tasks.value.some((t) => t.status === 'pending' || t.status === 'running'),
 );
 
+const hasFailedTasks = computed(() => tasks.value.some((t) => t.status === 'failed'));
+
 const STATUS_ORDER: Record<SyncTask['status'], number> = { running: 0, failed: 1, pending: 2, done: 3 };
 
 const sortedTasks = computed(() =>
@@ -224,6 +226,17 @@ async function retryTask(task: SyncTask): Promise<void> {
   startPolling();
 }
 
+async function clearTasks(): Promise<void> {
+  await fetch(`${apiBase}/tasks`, { method: 'DELETE' });
+  await refreshTasks();
+}
+
+async function retryAllFailed(): Promise<void> {
+  await fetch(`${apiBase}/tasks/retry-failed`, { method: 'POST' });
+  await refreshTasks();
+  startPolling();
+}
+
 function statusLabel(status: SyncTask['status']): string {
   return { pending: '等待中', running: '运行中', done: '完成', failed: '失败' }[status];
 }
@@ -344,7 +357,19 @@ onUnmounted(() => {
     <section v-if="showTasks" class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <div class="flex items-center justify-between mb-3">
         <h2 class="font-semibold">同步任务队列</h2>
-        <button class="text-sm text-gray-500 hover:underline" @click="refreshTasks">刷新</button>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="hasFailedTasks"
+            class="text-xs rounded bg-orange-500 px-2 py-1 text-white hover:bg-orange-600"
+            @click="retryAllFailed"
+          >重试所有失败</button>
+          <button
+            v-if="tasks.length > 0"
+            class="text-xs rounded bg-red-100 px-2 py-1 text-red-700 hover:bg-red-200"
+            @click="clearTasks"
+          >清除已完成</button>
+          <button class="text-sm text-gray-500 hover:underline" @click="refreshTasks">刷新</button>
+        </div>
       </div>
       <div class="space-y-2 max-h-72 overflow-y-auto">
         <div v-for="task in sortedTasks" :key="task.id" class="rounded border border-gray-100 p-3 text-sm">
