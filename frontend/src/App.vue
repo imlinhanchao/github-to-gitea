@@ -7,6 +7,7 @@ type Repo = {
   branches: string[];
   defaultBranch: string;
   lastSyncedAt: string | null;
+  enabled: boolean;
 };
 
 type SyncTask = {
@@ -210,6 +211,15 @@ async function updateBranches(repo: Repo, value: string): Promise<void> {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ branches }),
+  });
+  await refresh();
+}
+
+async function toggleEnabled(repo: Repo): Promise<void> {
+  await fetch(`${apiBase}/repositories/${repo.id}/enabled`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: !repo.enabled }),
   });
   await refresh();
 }
@@ -429,18 +439,31 @@ onUnmounted(() => {
         </div>
       </div>
       <div class="mt-1 space-y-3">
-        <div v-for="repo in filteredRepos" :key="repo.id" class="rounded border border-gray-200 p-3">
+        <div v-for="repo in filteredRepos" :key="repo.id" class="rounded border p-3" :class="repo.enabled ? 'border-gray-200' : 'border-gray-200 bg-gray-50 opacity-60'">
           <div class="flex items-center justify-between gap-3">
             <div>
               <p class="font-medium">{{ repo.fullName }}</p>
               <p class="text-xs text-gray-500">上次同步：{{ repo.lastSyncedAt ?? '未同步' }}</p>
             </div>
-            <button class="rounded bg-green-600 px-3 py-1 text-white text-sm" @click="syncNow(repo)">加入同步队列</button>
+            <div class="flex items-center gap-2 shrink-0">
+              <button
+                class="rounded px-3 py-1 text-sm"
+                :class="repo.enabled ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-300 text-gray-600 hover:bg-gray-400'"
+                :disabled="!repo.enabled"
+                @click="syncNow(repo)"
+              >加入同步队列</button>
+              <button
+                class="rounded px-3 py-1 text-sm border"
+                :class="repo.enabled ? 'border-red-300 text-red-600 hover:bg-red-50' : 'border-green-300 text-green-600 hover:bg-green-50'"
+                @click="toggleEnabled(repo)"
+              >{{ repo.enabled ? '停用' : '启用' }}</button>
+            </div>
           </div>
           <label class="mt-2 block text-xs text-gray-600">分支（逗号分隔）</label>
           <input
             :value="repo.branches.join(',')"
             class="mt-1 w-full rounded border px-3 py-2"
+            :disabled="!repo.enabled"
             @change="updateBranches(repo, ($event.target as HTMLInputElement).value)"
           />
         </div>
