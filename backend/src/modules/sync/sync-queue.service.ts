@@ -51,6 +51,18 @@ export class SyncQueueService implements OnModuleInit {
     await this.taskRepo.delete({ status: In(['done', 'failed']) });
   }
 
+  async cancelPendingTask(id: number): Promise<void> {
+    const task = await this.taskRepo.findOneByOrFail({ id });
+    if (task.status !== 'pending') {
+      throw new Error('Only pending tasks can be cancelled');
+    }
+    const idx = this.queue.findIndex((item) => item.taskId === id);
+    if (idx !== -1) {
+      this.queue.splice(idx, 1);
+    }
+    await this.taskRepo.delete({ id });
+  }
+
   async listFailedTasks(): Promise<SyncTaskEntity[]> {
     return this.taskRepo.find({ where: { status: 'failed' }, order: { createdAt: 'DESC' } });
   }

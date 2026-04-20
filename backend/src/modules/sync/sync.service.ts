@@ -112,6 +112,17 @@ export class SyncService implements OnModuleInit {
     return results;
   }
 
+  async cancelTask(id: number): Promise<void> {
+    return this.syncQueueService.cancelPendingTask(id);
+  }
+
+  async setupWebhook(id: number, webhookUrl: string): Promise<void> {
+    this.requireConfigured();
+    const entity = await this.repositorySyncRepo.findOneByOrFail({ id });
+    const config = this.configService.getConfigOrNull();
+    await this.githubService.setupWebhook(entity.fullName, webhookUrl, config?.webhookSecret || undefined);
+  }
+
   async syncByFullName(fullName: string): Promise<SyncTaskEntity | null> {
     this.requireConfigured();
     const entity = await this.repositorySyncRepo.findOne({ where: { fullName, enabled: true } });

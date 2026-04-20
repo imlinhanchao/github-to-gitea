@@ -11,6 +11,8 @@
     "vue": "^3.5.13"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.102",
+    "@unocss/preset-icons": "^66.6.8",
     "@unocss/reset": "^66.0.0",
     "@vitejs/plugin-vue": "^5.2.1",
     "daisyui": "^4.12.23",
