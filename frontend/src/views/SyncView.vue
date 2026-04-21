@@ -462,17 +462,16 @@ onUnmounted(() => {
 
       <!-- Repo list -->
       <div class="overflow-y-auto flex-1 space-y-1 pr-1">
-        <div
+        <label
           v-for="repo in pagedPreviewRepos"
           :key="repo.full_name"
           class="flex items-center gap-3 p-2 rounded hover:bg-base-200 cursor-pointer"
-          @click="toggleStarIgnored(repo.full_name)"
         >
           <input
             type="checkbox"
             class="checkbox checkbox-sm checkbox-primary"
             :checked="!starPreviewIgnored.has(repo.full_name)"
-            @click.stop="toggleStarIgnored(repo.full_name)"
+            @change="toggleStarIgnored(repo.full_name)"
           />
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium truncate">{{ repo.full_name }}</div>
@@ -482,7 +481,7 @@ onUnmounted(() => {
             <Icon icon="lucide:star" class="w-3 h-3 text-warning" />
             {{ repo.stargazers_count.toLocaleString() }}
           </div>
-        </div>
+        </label>
       </div>
 
       <div class="modal-action mt-4">
