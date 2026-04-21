@@ -55,6 +55,22 @@ export class SyncService implements OnModuleInit {
     return tasks;
   }
 
+  async addStarredAccount(account: string, webhookUrl?: string): Promise<SyncTaskEntity[]> {
+    this.requireConfigured();
+    const normalizedAccount = account.trim();
+    await this.giteaService.ensureUserExists(normalizedAccount);
+    const repos = await this.githubService.listStarredReposForAccount(normalizedAccount);
+    const tasks: SyncTaskEntity[] = [];
+    for (const repo of repos) {
+      tasks.push(
+        await this.enqueueUpsertAndSync(repo.full_name, webhookUrl, () =>
+          this.giteaService.starRepositoryForUser(normalizedAccount, repo.owner.login, repo.name),
+        ),
+      );
+    }
+    return tasks;
+  }
+
   async addRepository(fullName: string, webhookUrl?: string): Promise<SyncTaskEntity> {
     this.requireConfigured();
     return this.enqueueUpsertAndSync(fullName, webhookUrl);
@@ -150,7 +166,11 @@ export class SyncService implements OnModuleInit {
     }
   }
 
-  private async enqueueUpsertAndSync(fullName: string, webhookUrl?: string): Promise<SyncTaskEntity> {
+  private async enqueueUpsertAndSync(
+    fullName: string,
+    webhookUrl?: string,
+    postSync?: (entity: RepositorySyncEntity) => Promise<void>,
+  ): Promise<SyncTaskEntity> {
     // Ensure the entity exists in the DB before enqueuing
     let entity = await this.repositorySyncRepo.findOne({ where: { fullName } });
     const isNew = !entity;
@@ -172,7 +192,12 @@ export class SyncService implements OnModuleInit {
       await this.trySetupWebhook(entity, webhookUrl);
     }
     const saved = entity;
-    return this.syncQueueService.enqueue(fullName, () => this.syncEntity(saved));
+    return this.syncQueueService.enqueue(fullName, async () => {
+      const synced = await this.syncEntity(saved);
+      if (postSync) {
+        await postSync(synced);
+      }
+    });
   }
 
   private async trySetupWebhook(entity: RepositorySyncEntity, webhookUrl: string): Promise<void> {

@@ -15,6 +15,11 @@ export class SyncController {
     return this.syncService.addAccount(dto.account, dto.webhookUrl);
   }
 
+  @Post('account/starred')
+  addStarredAccount(@Body() dto: AddAccountDto) {
+    return this.syncService.addStarredAccount(dto.account, dto.webhookUrl);
+  }
+
   @Post('repository')
   addRepository(@Body() dto: AddRepoDto) {
     return this.syncService.addRepository(dto.fullName, dto.webhookUrl);
