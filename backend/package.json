@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "ts-node src/main.ts",
-    "build": "tsc -p tsconfig.build.json && cp package*.json ../dist/",
+    "build": "tsc -p tsconfig.build.json && shx cp package*.json ../dist/",
     "test": "jest --runInBand"
   },
   "dependencies": {
@@ -26,6 +26,7 @@
     "@types/jest": "^29.5.13",
     "@types/node": "^22.19.17",
     "jest": "^29.7.0",
+    "shx": "^0.4.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
