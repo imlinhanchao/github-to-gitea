@@ -1,9 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { AddAccountDto } from '../../dto/add-account.dto';
 import { AddRepoDto } from '../../dto/add-repo.dto';
+import { AddStarredAccountDto } from '../../dto/add-starred-account.dto';
 import { SetEnabledDto } from '../../dto/set-enabled.dto';
 import { SetupWebhookDto } from '../../dto/setup-webhook.dto';
 import { UpdateBranchesDto } from '../../dto/update-branches.dto';
+import { UpdateIgnoredReposDto } from '../../dto/update-ignored-repos.dto';
 import { SyncService } from './sync.service';
 
 @Controller('sync')
@@ -15,9 +17,24 @@ export class SyncController {
     return this.syncService.addAccount(dto.account, dto.webhookUrl);
   }
 
+  @Get('account/starred/preview')
+  previewStarredRepos(@Query('account') account: string) {
+    return this.syncService.previewStarredRepos(account);
+  }
+
   @Post('account/starred')
-  addStarredAccount(@Body() dto: AddAccountDto) {
-    return this.syncService.addStarredAccount(dto.account, dto.webhookUrl);
+  addStarredAccount(@Body() dto: AddStarredAccountDto) {
+    return this.syncService.addStarredAccount(dto.account, dto.ignoredRepos ?? [], dto.webhookUrl);
+  }
+
+  @Get('starred-accounts')
+  listStarredAccounts() {
+    return this.syncService.listStarredAccounts();
+  }
+
+  @Patch('starred-accounts/:account/ignored')
+  updateIgnoredRepos(@Param('account') account: string, @Body() dto: UpdateIgnoredReposDto) {
+    return this.syncService.updateIgnoredRepos(account, dto.ignoredRepos);
   }
 
   @Post('repository')

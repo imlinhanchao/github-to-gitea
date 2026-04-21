@@ -1,5 +1,13 @@
 import { SyncService } from '../src/modules/sync/sync.service';
 
+const mockStarredAccountRepo = {
+  findOne: jest.fn().mockResolvedValue(null),
+  save: jest.fn().mockImplementation(async (item: unknown) => item),
+  create: jest.fn().mockImplementation((item: unknown) => item),
+  find: jest.fn().mockResolvedValue([]),
+  findOneByOrFail: jest.fn(),
+} as any;
+
 describe('SyncService', () => {
   it('updates branches with dedupe and trims spaces', async () => {
     const entity = {
@@ -14,7 +22,7 @@ describe('SyncService', () => {
       save: jest.fn().mockImplementation(async (item) => item),
     } as any;
 
-    const service = new SyncService(repo, { isConfigured: () => true } as any, {} as any, {} as any, {} as any);
+    const service = new SyncService(repo, mockStarredAccountRepo, { isConfigured: () => true } as any, {} as any, {} as any, {} as any);
     const updated = await service.updateBranches(1, [' main ', 'dev', 'dev', '']);
 
     expect(updated.branches).toEqual(['main', 'dev']);
@@ -34,7 +42,7 @@ describe('SyncService', () => {
       save: jest.fn().mockImplementation(async (item) => item),
     } as any;
 
-    const service = new SyncService(repo, { isConfigured: () => true } as any, {} as any, {} as any, {} as any);
+    const service = new SyncService(repo, mockStarredAccountRepo, { isConfigured: () => true } as any, {} as any, {} as any, {} as any);
     const updated = await service.updateBranches(2, [' ']);
 
     expect(updated.branches).toEqual(['master']);
@@ -61,7 +69,7 @@ describe('SyncService', () => {
       getConfigOrNull: () => ({ webhookSecret: 'mysecret' }),
     } as any;
 
-    const service = new SyncService(repo, configService, githubService, {} as any, {} as any);
+    const service = new SyncService(repo, mockStarredAccountRepo, configService, githubService, {} as any, {} as any);
     await service.setupWebhook(3, 'https://example.com/api/sync/webhook/github');
 
     expect(githubService.setupWebhook).toHaveBeenCalledWith('foo/bar', 'https://example.com/api/sync/webhook/github', 'mysecret');
@@ -89,8 +97,15 @@ describe('SyncService', () => {
       create: jest.fn().mockImplementation((item) => ({ ...syncEntity, ...item })),
     } as any;
 
+    const starredRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockImplementation(async (item) => item),
+      create: jest.fn().mockImplementation((item: unknown) => item),
+      find: jest.fn().mockResolvedValue([]),
+    } as any;
+
     const githubService = {
-      listStarredReposForAccount: jest.fn().mockResolvedValue([{ full_name: 'alice/repo1', owner: { login: 'alice' }, name: 'repo1' }]),
+      listStarredReposForAccount: jest.fn().mockResolvedValue([{ full_name: 'alice/repo1', owner: { login: 'alice' }, name: 'repo1', stargazers_count: 100 }]),
       getRepo: jest.fn().mockResolvedValue({
         full_name: 'alice/repo1',
         owner: { login: 'alice' },
@@ -98,6 +113,7 @@ describe('SyncService', () => {
         private: false,
         default_branch: 'main',
         pushed_at: '2024-01-01T00:00:00Z',
+        stargazers_count: 100,
       }),
     } as any;
 
@@ -114,7 +130,7 @@ describe('SyncService', () => {
       }),
     } as any;
 
-    const service = new SyncService(repo, { isConfigured: () => true } as any, githubService, giteaService, queueService);
+    const service = new SyncService(repo, starredRepo, { isConfigured: () => true } as any, githubService, giteaService, queueService);
     await service.addStarredAccount('star-user');
 
     expect(githubService.listStarredReposForAccount).toHaveBeenCalledWith('star-user');

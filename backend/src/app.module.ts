@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { AppConfig, defaultConfigPath } from './config/app-config';
 import { RepositorySyncEntity } from './entities/repository-sync.entity';
+import { StarredAccountEntity } from './entities/starred-account.entity';
 import { SyncTaskEntity } from './entities/sync-task.entity';
 import { AppAuthGuard } from './modules/auth/auth.guard';
 import { AuthModule } from './modules/auth/auth.module';
@@ -18,7 +19,7 @@ function buildTypeOrmOptions(config: AppConfig | null) {
     return {
       type: 'sqlite' as const,
       database: ':memory:',
-      entities: [RepositorySyncEntity, SyncTaskEntity],
+      entities: [RepositorySyncEntity, SyncTaskEntity, StarredAccountEntity],
       synchronize: true,
     };
   }
@@ -29,7 +30,7 @@ function buildTypeOrmOptions(config: AppConfig | null) {
     username: config.dbUser,
     password: config.dbPassword,
     database: config.dbDatabase,
-    entities: [RepositorySyncEntity, SyncTaskEntity],
+    entities: [RepositorySyncEntity, SyncTaskEntity, StarredAccountEntity],
     synchronize: true,
     charset: 'utf8mb4',
     retryAttempts: 3,
