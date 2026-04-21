@@ -67,4 +67,59 @@ describe('SyncService', () => {
     expect(githubService.setupWebhook).toHaveBeenCalledWith('foo/bar', 'https://example.com/api/sync/webhook/github', 'mysecret');
     expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ webhookConfigured: true }));
   });
+
+  it('syncs starred account repos and stars them in gitea', async () => {
+    const syncEntity = {
+      id: 10,
+      fullName: 'alice/repo1',
+      owner: 'alice',
+      repo: 'repo1',
+      isPrivate: false,
+      defaultBranch: 'main',
+      branches: ['main'],
+      webhookConfigured: false,
+      lastGithubPushedAt: null,
+      lastSyncedAt: null,
+      enabled: true,
+    } as any;
+
+    const repo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      save: jest.fn().mockImplementation(async (item) => item),
+      create: jest.fn().mockImplementation((item) => ({ ...syncEntity, ...item })),
+    } as any;
+
+    const githubService = {
+      listStarredReposForAccount: jest.fn().mockResolvedValue([{ full_name: 'alice/repo1', owner: { login: 'alice' }, name: 'repo1' }]),
+      getRepo: jest.fn().mockResolvedValue({
+        full_name: 'alice/repo1',
+        owner: { login: 'alice' },
+        name: 'repo1',
+        private: false,
+        default_branch: 'main',
+        pushed_at: '2024-01-01T00:00:00Z',
+      }),
+    } as any;
+
+    const giteaService = {
+      ensureUserExists: jest.fn().mockResolvedValue(undefined),
+      syncRepository: jest.fn().mockResolvedValue(undefined),
+      starRepositoryForUser: jest.fn().mockResolvedValue(undefined),
+    } as any;
+
+    const queueService = {
+      enqueue: jest.fn().mockImplementation(async (_fullName, fn) => {
+        await fn();
+        return { id: 1 } as any;
+      }),
+    } as any;
+
+    const service = new SyncService(repo, { isConfigured: () => true } as any, githubService, giteaService, queueService);
+    await service.addStarredAccount('star-user');
+
+    expect(githubService.listStarredReposForAccount).toHaveBeenCalledWith('star-user');
+    expect(giteaService.ensureUserExists).toHaveBeenCalledWith('star-user');
+    expect(giteaService.syncRepository).toHaveBeenCalled();
+    expect(giteaService.starRepositoryForUser).toHaveBeenCalledWith('star-user', 'alice', 'repo1');
+  });
 });

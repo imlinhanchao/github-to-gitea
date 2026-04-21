@@ -29,6 +29,7 @@
 ## 功能要点
 
 - 支持按 GitHub 账号批量同步仓库，也支持指定单个仓库同步
+- 支持按用户名导入 GitHub Star 仓库并在 Gitea 中为同名用户自动加星
 - 支持私有仓库与公开仓库，只要 Token 具备访问权限
 - 在 Gitea 中自动创建与 GitHub 仓库 owner 同名的用户和仓库
 - 支持为每个仓库配置多个同步分支，默认使用仓库默认分支
@@ -221,6 +222,7 @@ cd frontend && npm install && npm run dev
 登录后可以选择两种方式导入仓库：
 
 - 输入 GitHub 用户名，批量导入该账号下可访问的仓库
+- 输入 GitHub 用户名，导入该用户的 Star 仓库并同步到 Gitea
 - 输入 `owner/repo`，只同步单个仓库
 
 ### 4. 管理同步仓库
@@ -285,4 +287,3 @@ cd frontend
 npm run dev
 npm run build
 ```
-

@@ -102,6 +102,12 @@ export class GithubService {
     return this.listAllRepos(`/users/${encodedAccount}/repos?type=all`);
   }
 
+  async listStarredReposForAccount(account: string): Promise<GithubRepository[]> {
+    const normalizedAccount = account.trim();
+    const encodedAccount = encodeURIComponent(normalizedAccount);
+    return this.listAllRepos(`/users/${encodedAccount}/starred?sort=updated&direction=desc`);
+  }
+
   getRepo(fullName: string): Promise<GithubRepository> {
     return this.request<GithubRepository>(`/repos/${this.encodeRepoFullName(fullName)}`);
   }

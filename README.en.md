@@ -29,6 +29,7 @@ The backend listens on `3001` by default. Static assets are served from the back
 ## Key Features
 
 - Sync repositories in bulk by GitHub account or one by one by repository name
+- Import a user's GitHub starred repositories and auto-star them for the same user in Gitea
 - Support both private and public repositories as long as the token has access
 - Automatically create matching users and repositories in Gitea based on the GitHub repository owner
 - Configure multiple sync branches per repository, with the default branch used initially
@@ -221,6 +222,7 @@ Currently public endpoints are kept open for setup and webhook handling:
 After signing in, you can import repositories in two ways:
 
 - Enter a GitHub username to import all accessible repositories under that account
+- Enter a GitHub username to import that user's starred repositories and sync them to Gitea
 - Enter `owner/repo` to sync a single repository
 
 ### 4. Manage Synced Repositories

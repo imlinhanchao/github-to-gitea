@@ -19,6 +19,7 @@ import type { Repo } from '../types';
 type RepoFilter = 'all' | 'never' | 'month' | 'year' | 'synced' | 'webhook';
 
 const account = ref('');
+const starredAccount = ref('');
 const repository = ref('');
 const loading = ref(false);
 const searchQuery = ref('');
@@ -75,6 +76,20 @@ async function addRepository() {
     body: JSON.stringify({ fullName: repository.value.trim(), webhookUrl: webhookUrl.value }),
   });
   repository.value = '';
+  loading.value = false;
+  await Promise.all([refresh(), refreshTasks()]);
+  startPolling();
+}
+
+async function addStarredAccount() {
+  if (!starredAccount.value.trim()) return;
+  loading.value = true;
+  await apiFetch(`${apiBase}/account/starred`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account: starredAccount.value.trim(), webhookUrl: webhookUrl.value }),
+  });
+  starredAccount.value = '';
   loading.value = false;
   await Promise.all([refresh(), refreshTasks()]);
   startPolling();
@@ -142,7 +157,7 @@ onUnmounted(() => {
   <AppLayout>
     <div class="space-y-6">
       <!-- Add account / Add repo -->
-      <div class="grid gap-4 md:grid-cols-2">
+      <div class="grid gap-4 md:grid-cols-3">
         <div class="card bg-base-200 shadow-sm">
           <div class="card-body p-4">
             <h2 class="card-title text-base">
@@ -164,6 +179,33 @@ onUnmounted(() => {
                 >
                   <Icon icon="lucide:plus" class="w-4 h-4" />
                   添加
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card bg-base-200 shadow-sm">
+          <div class="card-body p-4">
+            <h2 class="card-title text-base">
+              <Icon icon="lucide:star" class="w-5 h-5" />
+              导入 Star 仓库
+            </h2>
+            <div class="join w-full mt-2">
+              <input
+                v-model="starredAccount"
+                class="input input-bordered join-item flex-1 input-sm"
+                placeholder="例如 octocat"
+                @keyup.enter="addStarredAccount"
+              />
+              <div class="tooltip" data-tip="导入该用户所有 Star 仓库">
+                <button
+                  class="btn btn-primary join-item btn-sm"
+                  :disabled="loading || !starredAccount.trim()"
+                  @click="addStarredAccount"
+                >
+                  <Icon icon="lucide:star" class="w-4 h-4" />
+                  导入
                 </button>
               </div>
             </div>

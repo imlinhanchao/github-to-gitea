@@ -101,6 +101,14 @@ esac
     }
   }
 
+  async ensureUserExists(username: string): Promise<void> {
+    const normalized = username.trim();
+    if (!normalized) {
+      throw new Error('gitea username is required');
+    }
+    await this.ensureUser(normalized);
+  }
+
   private async ensureRepo(owner: string, repo: string, isPrivate: boolean): Promise<void> {
     const existing = await this.request(`/repos/${owner}/${repo}`);
     if (existing.ok) {
@@ -153,6 +161,22 @@ esac
       try {
         rmSync(workspace, { recursive: true, force: true });
       } catch {}
+    }
+  }
+
+  async starRepositoryForUser(username: string, owner: string, repo: string): Promise<void> {
+    const normalizedUser = username.trim();
+    if (!normalizedUser) {
+      throw new Error('gitea username is required');
+    }
+    const response = await this.request(`/user/starred/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
+      method: 'PUT',
+      headers: {
+        Sudo: normalizedUser,
+      },
+    });
+    if (!response.ok) {
+      throw new Error(`failed to star gitea repo ${owner}/${repo} as ${normalizedUser}: ${response.status}`);
     }
   }
 }
