@@ -14,7 +14,7 @@ import {
   startPolling,
   stopPolling,
 } from '../composables/useApi';
-import type { Repo } from '../types';
+import type { GithubStarredRepo, Repo } from '../types';
 
 type RepoFilter = 'all' | 'never' | 'month' | 'year' | 'synced' | 'webhook';
 
@@ -24,6 +24,21 @@ const repository = ref('');
 const loading = ref(false);
 const searchQuery = ref('');
 const repoFilter = ref<RepoFilter>('all');
+
+// Star preview modal state
+const starPreviewRepos = ref<GithubStarredRepo[]>([]);
+const starPreviewIgnored = ref(new Set<string>());
+const starPreviewPage = ref(1);
+const showStarModal = ref(false);
+const starPreviewLoading = ref(false);
+const STAR_PAGE_SIZE = 20;
+
+const totalStarPages = computed(() => Math.max(1, Math.ceil(starPreviewRepos.value.length / STAR_PAGE_SIZE)));
+const pagedPreviewRepos = computed(() => {
+  const start = (starPreviewPage.value - 1) * STAR_PAGE_SIZE;
+  return starPreviewRepos.value.slice(start, start + STAR_PAGE_SIZE);
+});
+const selectedStarCount = computed(() => starPreviewRepos.value.length - starPreviewIgnored.value.size);
 
 const ONE_MONTH = 30 * 24 * 60 * 60 * 1000;
 const ONE_YEAR = 365 * 24 * 60 * 60 * 1000;
@@ -81,15 +96,49 @@ async function addRepository() {
   startPolling();
 }
 
-async function addStarredAccount() {
+async function previewStarredRepos() {
   if (!starredAccount.value.trim()) return;
+  starPreviewLoading.value = true;
+  try {
+    const res = await apiFetch(
+      `${apiBase}/account/starred/preview?account=${encodeURIComponent(starredAccount.value.trim())}`,
+    );
+    if (res.ok) {
+      starPreviewRepos.value = (await res.json()) as GithubStarredRepo[];
+      starPreviewIgnored.value = new Set();
+      starPreviewPage.value = 1;
+      showStarModal.value = true;
+    }
+  } finally {
+    starPreviewLoading.value = false;
+  }
+}
+
+function toggleStarIgnored(fullName: string) {
+  if (starPreviewIgnored.value.has(fullName)) {
+    starPreviewIgnored.value.delete(fullName);
+  } else {
+    starPreviewIgnored.value.add(fullName);
+  }
+  // trigger reactivity
+  starPreviewIgnored.value = new Set(starPreviewIgnored.value);
+}
+
+async function confirmImportStarred() {
   loading.value = true;
+  showStarModal.value = false;
   await apiFetch(`${apiBase}/account/starred`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ account: starredAccount.value.trim(), webhookUrl: webhookUrl.value }),
+    body: JSON.stringify({
+      account: starredAccount.value.trim(),
+      ignoredRepos: Array.from(starPreviewIgnored.value),
+      webhookUrl: webhookUrl.value,
+    }),
   });
   starredAccount.value = '';
+  starPreviewRepos.value = [];
+  starPreviewIgnored.value = new Set();
   loading.value = false;
   await Promise.all([refresh(), refreshTasks()]);
   startPolling();
@@ -196,16 +245,17 @@ onUnmounted(() => {
                 v-model="starredAccount"
                 class="input input-bordered join-item flex-1 input-sm"
                 placeholder="例如 octocat"
-                @keyup.enter="addStarredAccount"
+                @keyup.enter="previewStarredRepos"
               />
-              <div class="tooltip" data-tip="导入该用户所有 Star 仓库">
+              <div class="tooltip" data-tip="查询该用户所有 Star 仓库">
                 <button
                   class="btn btn-primary join-item btn-sm"
-                  :disabled="loading || !starredAccount.trim()"
-                  @click="addStarredAccount"
+                  :disabled="starPreviewLoading || loading || !starredAccount.trim()"
+                  @click="previewStarredRepos"
                 >
-                  <Icon icon="lucide:star" class="w-4 h-4" />
-                  导入
+                  <span v-if="starPreviewLoading" class="loading loading-spinner loading-xs" />
+                  <Icon v-else icon="lucide:search" class="w-4 h-4" />
+                  查询
                 </button>
               </div>
             </div>
@@ -372,4 +422,81 @@ onUnmounted(() => {
       </div>
     </div>
   </AppLayout>
+
+  <!-- Star preview modal -->
+  <div v-if="showStarModal" class="modal modal-open">
+    <div class="modal-box w-11/12 max-w-2xl flex flex-col max-h-[80vh]">
+      <h3 class="font-bold text-lg flex items-center gap-2">
+        <Icon icon="lucide:star" class="w-5 h-5 text-warning" />
+        Star 仓库列表
+      </h3>
+      <p class="text-sm text-base-content/50 mt-1 mb-3">
+        按 Star 数排序，取消勾选的仓库将被忽略同步。共 {{ starPreviewRepos.length }} 个仓库，已选 {{ selectedStarCount }} 个。
+      </p>
+
+      <!-- Pagination controls -->
+      <div class="flex justify-between items-center mb-2">
+        <div class="join">
+          <button
+            class="btn btn-xs join-item"
+            :disabled="starPreviewPage <= 1"
+            @click="starPreviewPage--"
+          >«</button>
+          <button class="btn btn-xs join-item pointer-events-none">
+            {{ starPreviewPage }} / {{ totalStarPages }}
+          </button>
+          <button
+            class="btn btn-xs join-item"
+            :disabled="starPreviewPage >= totalStarPages"
+            @click="starPreviewPage++"
+          >»</button>
+        </div>
+        <div class="flex gap-2">
+          <button class="btn btn-xs btn-ghost" @click="starPreviewIgnored = new Set()">全选</button>
+          <button
+            class="btn btn-xs btn-ghost"
+            @click="starPreviewIgnored = new Set(starPreviewRepos.map(r => r.full_name))"
+          >全不选</button>
+        </div>
+      </div>
+
+      <!-- Repo list -->
+      <div class="overflow-y-auto flex-1 space-y-1 pr-1">
+        <div
+          v-for="repo in pagedPreviewRepos"
+          :key="repo.full_name"
+          class="flex items-center gap-3 p-2 rounded hover:bg-base-200 cursor-pointer"
+          @click="toggleStarIgnored(repo.full_name)"
+        >
+          <input
+            type="checkbox"
+            class="checkbox checkbox-sm checkbox-primary"
+            :checked="!starPreviewIgnored.has(repo.full_name)"
+            @click.stop="toggleStarIgnored(repo.full_name)"
+          />
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium truncate">{{ repo.full_name }}</div>
+            <div v-if="repo.description" class="text-xs text-base-content/50 truncate">{{ repo.description }}</div>
+          </div>
+          <div class="flex items-center gap-1 text-xs text-base-content/50 shrink-0">
+            <Icon icon="lucide:star" class="w-3 h-3 text-warning" />
+            {{ repo.stargazers_count.toLocaleString() }}
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-action mt-4">
+        <button class="btn btn-ghost btn-sm" @click="showStarModal = false">取消</button>
+        <button
+          class="btn btn-primary btn-sm"
+          :disabled="loading || selectedStarCount === 0"
+          @click="confirmImportStarred"
+        >
+          <Icon icon="lucide:download" class="w-4 h-4" />
+          导入选中 ({{ selectedStarCount }})
+        </button>
+      </div>
+    </div>
+    <div class="modal-backdrop" @click="showStarModal = false" />
+  </div>
 </template>

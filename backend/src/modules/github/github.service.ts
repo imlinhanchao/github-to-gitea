@@ -9,6 +9,7 @@ export interface GithubRepository {
   default_branch: string;
   pushed_at: string;
   clone_url: string;
+  stargazers_count: number;
   owner: {
     login: string;
   };

@@ -3,9 +3,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { RepositorySyncEntity } from '../../entities/repository-sync.entity';
+import { StarredAccountEntity } from '../../entities/starred-account.entity';
 import { SyncTaskEntity } from '../../entities/sync-task.entity';
 import { RuntimeConfigService } from '../../config/config.service';
-import { GithubService } from '../github/github.service';
+import { GithubRepository, GithubService } from '../github/github.service';
 import { GiteaService } from '../gitea/gitea.service';
 import { SyncQueueService } from './sync-queue.service';
 
@@ -14,6 +15,8 @@ export class SyncService implements OnModuleInit {
   constructor(
     @InjectRepository(RepositorySyncEntity)
     private readonly repositorySyncRepo: Repository<RepositorySyncEntity>,
+    @InjectRepository(StarredAccountEntity)
+    private readonly starredAccountRepo: Repository<StarredAccountEntity>,
     private readonly configService: RuntimeConfigService,
     private readonly githubService: GithubService,
     private readonly giteaService: GiteaService,
@@ -55,13 +58,32 @@ export class SyncService implements OnModuleInit {
     return tasks;
   }
 
-  async addStarredAccount(account: string, webhookUrl?: string): Promise<SyncTaskEntity[]> {
+  async addStarredAccount(account: string, ignoredRepos: string[] = [], webhookUrl?: string): Promise<SyncTaskEntity[]> {
     this.requireConfigured();
     const normalizedAccount = account.trim();
     await this.giteaService.ensureUserExists(normalizedAccount);
     const repos = await this.githubService.listStarredReposForAccount(normalizedAccount);
+
+    // Upsert the starred account record
+    let starredAccount = await this.starredAccountRepo.findOne({ where: { account: normalizedAccount } });
+    if (!starredAccount) {
+      starredAccount = this.starredAccountRepo.create({
+        account: normalizedAccount,
+        ignoredRepos,
+        knownStarredRepos: repos.map((r) => r.full_name),
+        lastCheckedAt: new Date().toISOString(),
+      });
+    } else {
+      starredAccount.ignoredRepos = ignoredRepos;
+      starredAccount.knownStarredRepos = repos.map((r) => r.full_name);
+      starredAccount.lastCheckedAt = new Date().toISOString();
+    }
+    await this.starredAccountRepo.save(starredAccount);
+
+    const ignoredSet = new Set(ignoredRepos);
     const tasks: SyncTaskEntity[] = [];
     for (const repo of repos) {
+      if (ignoredSet.has(repo.full_name)) continue;
       tasks.push(
         await this.enqueueUpsertAndSync(repo.full_name, webhookUrl, (entity) =>
           this.giteaService.starRepositoryForUser(normalizedAccount, entity.owner, entity.repo),
@@ -69,6 +91,23 @@ export class SyncService implements OnModuleInit {
       );
     }
     return tasks;
+  }
+
+  async previewStarredRepos(account: string): Promise<GithubRepository[]> {
+    this.requireConfigured();
+    const normalizedAccount = account.trim();
+    const repos = await this.githubService.listStarredReposForAccount(normalizedAccount);
+    return repos.sort((a, b) => b.stargazers_count - a.stargazers_count);
+  }
+
+  async listStarredAccounts(): Promise<StarredAccountEntity[]> {
+    return this.starredAccountRepo.find();
+  }
+
+  async updateIgnoredRepos(account: string, ignoredRepos: string[]): Promise<StarredAccountEntity> {
+    const starredAccount = await this.starredAccountRepo.findOneByOrFail({ account });
+    starredAccount.ignoredRepos = ignoredRepos;
+    return this.starredAccountRepo.save(starredAccount);
   }
 
   async addRepository(fullName: string, webhookUrl?: string): Promise<SyncTaskEntity> {
@@ -162,6 +201,33 @@ export class SyncService implements OnModuleInit {
       if (!entity.lastGithubPushedAt || new Date(pushedAt) > new Date(entity.lastGithubPushedAt)) {
         const target = entity;
         await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(target));
+      }
+    }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async checkNewStars(): Promise<void> {
+    if (!this.configService.isConfigured()) {
+      return;
+    }
+    const accounts = await this.starredAccountRepo.find();
+    for (const starredAccount of accounts) {
+      try {
+        const repos = await this.githubService.listStarredReposForAccount(starredAccount.account);
+        const knownSet = new Set(starredAccount.knownStarredRepos);
+        const ignoredSet = new Set(starredAccount.ignoredRepos);
+        const newRepos = repos.filter((r) => !knownSet.has(r.full_name) && !ignoredSet.has(r.full_name));
+        for (const repo of newRepos) {
+          const account = starredAccount.account;
+          await this.enqueueUpsertAndSync(repo.full_name, undefined, (entity) =>
+            this.giteaService.starRepositoryForUser(account, entity.owner, entity.repo),
+          );
+        }
+        starredAccount.knownStarredRepos = repos.map((r) => r.full_name);
+        starredAccount.lastCheckedAt = new Date().toISOString();
+        await this.starredAccountRepo.save(starredAccount);
+      } catch {
+        // Ignore errors per-account to allow others to proceed
       }
     }
   }

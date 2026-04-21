@@ -37,3 +37,18 @@ export type AuthStatus = {
   authenticated: boolean;
   username: string | null;
 };
+
+export type GithubStarredRepo = {
+  full_name: string;
+  stargazers_count: number;
+  private: boolean;
+  description: string | null;
+};
+
+export type StarredAccount = {
+  id: number;
+  account: string;
+  ignoredRepos: string[];
+  knownStarredRepos: string[];
+  lastCheckedAt: string | null;
+};
