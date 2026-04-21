@@ -63,8 +63,8 @@ export class SyncService implements OnModuleInit {
     const tasks: SyncTaskEntity[] = [];
     for (const repo of repos) {
       tasks.push(
-        await this.enqueueUpsertAndSync(repo.full_name, webhookUrl, () =>
-          this.giteaService.starRepositoryForUser(normalizedAccount, repo.owner.login, repo.name),
+        await this.enqueueUpsertAndSync(repo.full_name, webhookUrl, (entity) =>
+          this.giteaService.starRepositoryForUser(normalizedAccount, entity.owner, entity.repo),
         ),
       );
     }
