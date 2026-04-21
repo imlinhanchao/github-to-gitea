@@ -8,10 +8,10 @@ export class StarredAccountEntity {
   @Column({ unique: true })
   account!: string;
 
-  @Column({ type: 'simple-json', default: '[]' })
+  @Column({ type: 'simple-json' })
   ignoredRepos: string[] = [];
 
-  @Column({ type: 'simple-json', default: '[]' })
+  @Column({ type: 'simple-json' })
   knownStarredRepos: string[] = [];
 
   @Column({ type: 'datetime', nullable: true })
