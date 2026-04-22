@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # MySQL 数据库服务
+  mysql:
+    image: mysql:8.0
+    container_name: github-to-gitea-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-github_to_gitea}
+      MYSQL_USER: ${DB_USER:-gitea_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-gitea_password}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+    networks:
+      - github-to-gitea-network
+
+  # Gitea 服务
+  gitea:
+    image: gitea/gitea:latest
+    container_name: github-to-gitea-gitea
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=mysql
+      - GITEA__database__HOST=mysql:3306
+      - GITEA__database__NAME=${DB_DATABASE:-github_to_gitea}
+      - GITEA__database__USER=${DB_USER:-gitea_user}
+      - GITEA__database__PASSWD=${DB_PASSWORD:-gitea_password}
+      - GITEA__security__INSTALL_LOCK=false
+      - GITEA__server__ROOT_URL=${GITEA_ROOT_URL:-http://localhost:3000}
+      - GITEA__server__SSH_DOMAIN=${GITEA_SSH_DOMAIN:-localhost}
+      - GITEA__service__DISABLE_REGISTRATION=true
+    ports:
+      - "${GITEA_HTTP_PORT:-3000}:3000"
+      - "${GITEA_SSH_PORT:-222}:22"
+    volumes:
+      - gitea_data:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - github-to-gitea-network
+
+  # github-to-gitea 应用服务
+  github-to-gitea:
+    image: ghcr.io/imlinhanchao/github-to-gitea:latest
+    container_name: github-to-gitea-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      gitea:
+        condition: service_started
+    environment:
+      # 数据库配置（应用启动时需要）
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=${DB_USER:-gitea_user}
+      - DB_PASSWORD=${DB_PASSWORD:-gitea_password}
+      - DB_DATABASE=${DB_DATABASE:-github_to_gitea}
+      
+      # Node 环境
+      - NODE_ENV=production
+    ports:
+      - "${APP_PORT:-3001}:3001"
+    volumes:
+      - app_data:/app/config
+    networks:
+      - github-to-gitea-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/auth/status"]
+      timeout: 10s
+      retries: 5
+      interval: 30s
+
+volumes:
+  mysql_data:
+    driver: local
+  gitea_data:
+    driver: local
+  app_data:
+    driver: local
+
+networks:
+  github-to-gitea-network:
+    driver: bridge

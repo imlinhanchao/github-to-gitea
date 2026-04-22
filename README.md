@@ -26,6 +26,30 @@
 
 后端默认监听 `3001`，页面静态资源由后端根路径直接提供，所有接口统一挂载在 `/api` 下。
 
+## 快速开始
+
+根据你的需求选择合适的部署方式：
+
+| 部署方式 | 适用场景 | 难度 | 启动速度 |
+|---------|--------|------|--------|
+| [Docker Compose](#方式一docker-compose-一键部署推荐) | 完全自动化，一条命令启动所有服务（Gitea、MySQL、应用） | ⭐ | 快 |
+| [Docker 单独部署](#方式二docker-单独部署外部数据库) | 已有 Gitea 和 MySQL，仅部署应用 | ⭐⭐ | 快 |
+| [统一打包部署](#方式三统一打包部署) | 传统部署方式，自己管理依赖和启动 | ⭐⭐⭐ | 中等 |
+| [前后端分开开发](#方式四前后端分开开发运行) | 本地开发调试，前后端分离 | ⭐⭐ | 中等 |
+
+**推荐方案：** 如果是第一次使用，建议选择 **Docker Compose**，一条命令即可启动所有必要服务。
+
+```bash
+# 1. 准备配置文件
+cp .env.example .env
+# 2. 编辑 .env 填写 Gitea 管理员密码和数据库配置
+# 3. 启动
+docker-compose up -d
+# 4. 按引导在 Web 界面完成应用配置
+```
+
+详细说明请参见下面的部署方式部分。
+
 ## 功能要点
 
 - 支持按 GitHub 账号批量同步仓库，也支持指定单个仓库同步
@@ -127,7 +151,159 @@ npm run dev
 
 ## 部署方式
 
-### 方式一：统一打包部署
+### Docker Compose 一键部署（推荐）
+
+使用 Docker Compose 可以一次性启动 Gitea、MySQL 和 github-to-gitea 应用：
+
+#### 准备配置文件
+
+1. 复制 `.env.example` 为 `.env`：
+
+```bash
+cp .env.example .env
+```
+
+2. 编辑 `.env` 文件，填写数据库配置项：
+
+```env
+# MySQL 数据库配置
+DB_USER=gitea_user
+DB_PASSWORD=gitea_password
+DB_DATABASE=github_to_gitea
+```
+
+#### 启动服务
+
+```bash
+docker-compose up -d
+```
+
+#### 初始化 Gitea
+
+首次启动时，访问 `http://localhost:3000` 进行 Gitea 初始化设置：
+
+1. 数据库类型选择 **MySQL**
+2. 数据库连接信息：
+   - 主机：`mysql:3306`
+   - 用户：`gitea_user`（或你在 `.env` 中设置的 `DB_USER`）
+   - 密码：`.env` 中设置的 `DB_PASSWORD`
+   - 数据库：`github_to_gitea`（或 `DB_DATABASE`）
+3. 填写**管理员账号信息**（自行设置用户名和密码，稍后在 github-to-gitea 中会用到）
+4. 完成初始化
+
+#### 配置 github-to-gitea 应用
+
+Gitea 初始化完成后，访问 `http://localhost:3001`：
+
+1. 首次访问会进入**初始化配置页面**
+2. 在页面上填写以下信息：
+   - **GitHub Token** - GitHub Personal Access Token
+   - **Gitea Token** - Gitea 管理员 API Token（需要先在 Gitea 中创建）
+   - **Gitea 地址** - `http://gitea:3000`（Docker 内部网络）
+   - **Gitea 管理员用户名** - 与 Gitea 初始化时的用户名一致
+   - **Gitea 管理员密码** - 与 Gitea 初始化时的密码一致
+   - **MySQL 连接信息** - 填写与 `.env` 一致的数据库配置
+   - **GitHub Webhook 密钥** - 可选
+
+3. 配置保存后，应用会在 `config.json` 中记录所有配置
+
+#### 访问应用
+
+- 前端页面：`http://localhost:3001`
+- Gitea：`http://localhost:3000`
+- MySQL：`localhost:3306`
+
+#### 常用命令
+
+```bash
+# 查看日志
+docker-compose logs -f
+
+# 查看特定服务日志
+docker-compose logs -f github-to-gitea
+
+# 停止所有服务
+docker-compose down
+
+# 停止并删除所有数据（谨慎使用）
+docker-compose down -v
+```
+
+### Docker 单独部署（外部数据库）
+
+如果你已经有独立的 Gitea 和 MySQL 服务，可以仅使用 Docker 运行 github-to-gitea 应用。
+
+#### 运行容器
+
+根据你的数据库配置，使用环境变量启动容器：
+
+```bash
+docker run -d \
+  --restart unless-stopped \
+  --name github-to-gitea \
+  -p 3001:3001 \
+  -e DB_HOST=your-mysql-host \
+  -e DB_PORT=3306 \
+  -e DB_USER=your_db_user \
+  -e DB_PASSWORD=your_db_password \
+  -e DB_DATABASE=github_to_gitea \
+  -e NODE_ENV=production \
+  ghcr.io/imlinhanchao/github-to-gitea:latest
+```
+
+**参数说明：**
+
+- `DB_HOST` - MySQL 服务器地址
+- `DB_PORT` - MySQL 端口（默认 3306）
+- `DB_USER` - MySQL 用户名
+- `DB_PASSWORD` - MySQL 密码
+- `DB_DATABASE` - 数据库名称
+
+#### 初始化应用配置
+
+1. 等待容器启动完成，访问 `http://localhost:3001`
+2. 首次访问会进入**初始化配置页面**
+3. 在页面上填写以下信息：
+   - **GitHub Token** - GitHub Personal Access Token
+   - **Gitea Token** - Gitea 管理员 API Token
+   - **Gitea 地址** - 你的 Gitea 访问地址
+   - **Gitea 管理员用户名和密码**
+   - **GitHub Webhook 密钥** - 可选
+
+4. 配置保存后，应用会在 `config.json` 中记录所有配置
+
+#### 其他常用命令
+
+```bash
+# 查看日志
+docker logs -f github-to-gitea
+
+# 停止容器
+docker stop github-to-gitea
+
+# 启动已停止的容器
+docker start github-to-gitea
+
+# 删除容器
+docker rm github-to-gitea
+```
+
+**注意：** 如需持久化配置，建议挂载配置目录：
+
+```bash
+docker run -d \
+  --restart unless-stopped \
+  --name github-to-gitea \
+  -p 3001:3001 \
+  -v $(pwd)/config:/app/config \
+  -e DB_HOST=your-mysql-host \
+  -e DB_USER=your_db_user \
+  -e DB_PASSWORD=your_db_password \
+  -e DB_DATABASE=github_to_gitea \
+  ghcr.io/imlinhanchao/github-to-gitea:latest
+```
+
+### 统一打包部署
 
 项目已经把前后端产物统一输出到根目录 `dist`：
 
@@ -167,7 +343,7 @@ node main.js
 - 后端接口路径是 `/api/*`
 - 如果使用反向代理，请确保 `/api` 和静态资源都转发到同一个 Node 服务
 
-### 方式二：前后端分开开发运行
+### 前后端分开开发运行
 
 适合本地联调：
 
@@ -272,6 +448,8 @@ cd frontend && npm install && npm run dev
 
 ## 常用命令
 
+### 开发编译
+
 ```bash
 # 根目录统一构建
 npm run build
@@ -286,4 +464,61 @@ npm run build
 cd frontend
 npm run dev
 npm run build
+```
+
+### Docker 相关
+
+```bash
+# ===== Docker Compose 一体部署 =====
+
+# 启动所有服务
+docker-compose up -d
+
+# 查看日志
+docker-compose logs -f
+
+# 查看特定服务日志
+docker-compose logs -f github-to-gitea
+
+# 重启应用
+docker-compose restart github-to-gitea
+
+# 停止所有服务
+docker-compose down
+
+# 停止并删除所有数据（谨慎使用）
+docker-compose down -v
+
+# ===== Docker 单独部署 =====
+
+# 运行应用容器
+docker run -d \
+  --restart unless-stopped \
+  --name github-to-gitea \
+  -p 3001:3001 \
+  -v $(pwd)/config.json:/app/config.json \
+  ghcr.io/imlinhanchao/github-to-gitea:latest
+
+# 查看运行日志
+docker logs -f github-to-gitea
+
+# 停止容器
+docker stop github-to-gitea
+
+# 启动已停止的容器
+docker start github-to-gitea
+
+# 删除容器
+docker rm github-to-gitea
+
+# 删除镜像
+docker rmi ghcr.io/imlinhanchao/github-to-gitea:latest
+
+# ===== 镜像相关 =====
+
+# 拉取最新镜像
+docker pull ghcr.io/imlinhanchao/github-to-gitea:latest
+
+# 查看本地镜像
+docker images | grep github-to-gitea
 ```
