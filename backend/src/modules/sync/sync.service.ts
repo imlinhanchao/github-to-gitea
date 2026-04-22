@@ -8,7 +8,7 @@ import { SyncTaskEntity } from '../../entities/sync-task.entity';
 import { RuntimeConfigService } from '../../config/config.service';
 import { GithubRepository, GithubService } from '../github/github.service';
 import { GiteaService } from '../gitea/gitea.service';
-import { SyncQueueService } from './sync-queue.service';
+import { SyncQueueService, TaskPage } from './sync-queue.service';
 
 @Injectable()
 export class SyncService implements OnModuleInit {
@@ -29,8 +29,7 @@ export class SyncService implements OnModuleInit {
     }
     const unsynced = await this.repositorySyncRepo.find({ where: { lastSyncedAt: IsNull(), enabled: true } });
     for (const entity of unsynced) {
-      const target = entity;
-      await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(target));
+      await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity));
     }
   }
 
@@ -63,8 +62,6 @@ export class SyncService implements OnModuleInit {
     const normalizedAccount = account.trim();
     await this.giteaService.ensureUserExists(normalizedAccount);
     const repos = await this.githubService.listStarredReposForAccount(normalizedAccount);
-
-    // Upsert the starred account record
     let starredAccount = await this.starredAccountRepo.findOne({ where: { account: normalizedAccount } });
     if (!starredAccount) {
       starredAccount = this.starredAccountRepo.create({
@@ -79,7 +76,6 @@ export class SyncService implements OnModuleInit {
       starredAccount.lastCheckedAt = new Date().toISOString();
     }
     await this.starredAccountRepo.save(starredAccount);
-
     const ignoredSet = new Set(ignoredRepos);
     const tasks: SyncTaskEntity[] = [];
     for (const repo of repos) {
@@ -120,11 +116,24 @@ export class SyncService implements OnModuleInit {
     target.branches = this.normalizeBranches(branches, target.defaultBranch);
     return this.repositorySyncRepo.save(target);
   }
-
   async syncOne(id: number): Promise<SyncTaskEntity> {
     this.requireConfigured();
     const target = await this.repositorySyncRepo.findOneByOrFail({ id });
     return this.syncQueueService.enqueue(target.fullName, () => this.syncEntity(target));
+  }
+
+  async syncAll(): Promise<SyncTaskEntity[]> {
+    this.requireConfigured();
+    const [entities, activeTasks] = await Promise.all([
+      this.repositorySyncRepo.find({ where: { enabled: true }, order: { fullName: 'ASC' } }),
+      this.syncQueueService.listActiveTasks(),
+    ]);
+    const activeRepoNames = new Set(activeTasks.map((task) => task.repoFullName));
+    return Promise.all(
+      entities.filter((entity) => !activeRepoNames.has(entity.fullName)).map((entity) =>
+        this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity)),
+      ),
+    );
   }
 
   async setEnabled(id: number, enabled: boolean): Promise<RepositorySyncEntity> {
@@ -137,8 +146,8 @@ export class SyncService implements OnModuleInit {
     return this.repositorySyncRepo.find({ order: { fullName: 'ASC' } });
   }
 
-  async listTasks(limit?: number): Promise<SyncTaskEntity[]> {
-    return this.syncQueueService.listTasks(limit);
+  async listTasks(page?: number, pageSize?: number): Promise<TaskPage> {
+    return this.syncQueueService.listTasks({ page, pageSize });
   }
 
   async retryTask(taskId: number): Promise<SyncTaskEntity> {
@@ -183,10 +192,7 @@ export class SyncService implements OnModuleInit {
   async syncByFullName(fullName: string): Promise<SyncTaskEntity | null> {
     this.requireConfigured();
     const entity = await this.repositorySyncRepo.findOne({ where: { fullName, enabled: true } });
-    if (!entity) {
-      return null;
-    }
-    return this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity));
+    return entity ? this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity)) : null;
   }
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
@@ -199,8 +205,7 @@ export class SyncService implements OnModuleInit {
       const githubRepo = await this.githubService.getRepo(entity.fullName);
       const pushedAt = githubRepo.pushed_at;
       if (!entity.lastGithubPushedAt || new Date(pushedAt) > new Date(entity.lastGithubPushedAt)) {
-        const target = entity;
-        await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(target));
+        await this.syncQueueService.enqueue(entity.fullName, () => this.syncEntity(entity));
       }
     }
   }
@@ -237,7 +242,6 @@ export class SyncService implements OnModuleInit {
     webhookUrl?: string,
     postSync?: (entity: RepositorySyncEntity) => Promise<void>,
   ): Promise<SyncTaskEntity> {
-    // Ensure the entity exists in the DB before enqueuing
     let entity = await this.repositorySyncRepo.findOne({ where: { fullName } });
     const isNew = !entity;
     if (!entity) {
@@ -280,18 +284,15 @@ export class SyncService implements OnModuleInit {
   private async syncEntity(entity: RepositorySyncEntity): Promise<RepositorySyncEntity> {
     const githubRepo = await this.githubService.getRepo(entity.fullName);
     await this.giteaService.syncRepository(githubRepo, this.normalizeBranches(entity.branches, githubRepo.default_branch));
-
     entity.owner = githubRepo.owner.login;
     entity.repo = githubRepo.name;
     entity.isPrivate = githubRepo.private;
     entity.defaultBranch = githubRepo.default_branch;
     entity.lastGithubPushedAt = githubRepo.pushed_at;
     entity.lastSyncedAt = new Date().toISOString();
-
     if (!entity.branches?.length) {
       entity.branches = [githubRepo.default_branch || 'main'];
     }
-
     return this.repositorySyncRepo.save(entity);
   }
 }

@@ -18,6 +18,29 @@ export type SyncTask = {
   finishedAt: string | null;
 };
 
+export type ActiveTask = {
+  id: number;
+  repoFullName: string;
+  status: 'pending' | 'running';
+};
+
+export type TaskSummary = {
+  pending: number;
+  running: number;
+  done: number;
+  failed: number;
+};
+
+export type TaskPage = {
+  items: SyncTask[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  summary: TaskSummary;
+  activeItems: ActiveTask[];
+};
+
 export type ConfigView = {
   githubToken: string;
   giteaToken: string;

@@ -9,12 +9,21 @@ import {
   sortedTasks,
   hasFailedTasks,
   refreshTasks,
+  setTaskPage,
+  setTaskPageSize,
   startPolling,
   stopPolling,
   statusLabel,
   statusBadgeClass,
+  taskPage,
+  taskPageCount,
+  taskPageSize,
+  taskSummary,
+  taskTotal,
 } from '../composables/useApi';
 import type { SyncTask } from '../types';
+
+const PAGE_SIZES = [20, 50, 100];
 
 async function retryTask(task: SyncTask) {
   await apiFetch(`${apiBase}/tasks/${task.id}/retry`, { method: 'POST' });
@@ -38,6 +47,26 @@ async function retryAllFailed() {
   startPolling();
 }
 
+async function syncAll() {
+  await apiFetch(`${apiBase}/repositories/run-all`, { method: 'POST' });
+  await refreshTasks();
+  startPolling();
+}
+
+async function goToPreviousPage() {
+  if (taskPage.value <= 1) return;
+  await setTaskPage(taskPage.value - 1);
+}
+
+async function goToNextPage() {
+  if (taskPage.value >= taskPageCount.value) return;
+  await setTaskPage(taskPage.value + 1);
+}
+
+async function changePageSize(value: string) {
+  await setTaskPageSize(Number(value));
+}
+
 onMounted(async () => {
   await refreshTasks();
   startPolling();
@@ -59,6 +88,12 @@ onUnmounted(() => {
             同步任务队列
           </h2>
           <div class="flex items-center gap-2">
+            <div class="tooltip" data-tip="将所有已启用仓库加入同步队列">
+              <button class="btn btn-primary btn-sm gap-1" @click="syncAll">
+                <Icon icon="lucide:play" class="w-4 h-4" />
+                全部同步
+              </button>
+            </div>
             <div class="tooltip" data-tip="重试所有失败任务">
               <button v-if="hasFailedTasks" class="btn btn-warning btn-sm gap-1" @click="retryAllFailed">
                 <Icon icon="lucide:refresh-cw" class="w-4 h-4" />
@@ -77,6 +112,22 @@ onUnmounted(() => {
               </button>
             </div>
           </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div class="flex flex-wrap items-center gap-2 text-xs">
+            <div class="badge badge-outline">总数 {{ taskTotal }}</div>
+            <div class="badge badge-info">运行中 {{ taskSummary.running }}</div>
+            <div class="badge badge-warning">等待中 {{ taskSummary.pending }}</div>
+            <div class="badge badge-success">完成 {{ taskSummary.done }}</div>
+            <div class="badge badge-error">失败 {{ taskSummary.failed }}</div>
+          </div>
+          <label class="flex items-center gap-2 text-sm">
+            每页
+            <select class="select select-bordered select-xs" :value="taskPageSize" @change="changePageSize(($event.target as HTMLSelectElement).value)">
+              <option v-for="size in PAGE_SIZES" :key="size" :value="size">{{ size }}</option>
+            </select>
+          </label>
         </div>
 
         <!-- Task list -->
@@ -126,6 +177,23 @@ onUnmounted(() => {
           <div v-if="tasks.length === 0" class="text-center py-12 text-base-content/40">
             <Icon icon="lucide:check-circle-2" class="w-12 h-12 mx-auto mb-2" />
             <p class="text-sm">暂无任务</p>
+          </div>
+        </div>
+
+        <div v-if="taskTotal > 0" class="flex flex-wrap items-center justify-between gap-3 mt-4">
+          <p class="text-xs text-base-content/50">
+            第 {{ taskPage }} / {{ taskPageCount }} 页
+          </p>
+          <div class="join">
+            <button class="btn btn-sm join-item" :disabled="taskPage <= 1" @click="goToPreviousPage">
+              上一页
+            </button>
+            <button class="btn btn-sm join-item pointer-events-none">
+              {{ taskPage }}
+            </button>
+            <button class="btn btn-sm join-item" :disabled="taskPage >= taskPageCount" @click="goToNextPage">
+              下一页
+            </button>
           </div>
         </div>
       </div>

@@ -3,12 +3,13 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Icon } from '@iconify/vue';
 import AppLayout from '../layouts/AppLayout.vue';
 import {
+  activeTasks,
   apiFetch,
   apiBase,
   webhookUrl,
   repos,
-  tasks,
   queuedRepoNames,
+  runningRepoNames,
   refresh,
   refreshTasks,
   startPolling,
@@ -167,19 +168,57 @@ async function toggleEnabled(repo: Repo) {
 }
 
 async function syncNow(repo: Repo) {
+  if (getActiveTask(repo.fullName)) return;
   await apiFetch(`${apiBase}/repositories/${repo.id}/run`, { method: 'POST' });
   await refreshTasks();
   startPolling();
 }
 
 async function removeFromQueue(repo: Repo) {
-  const task = tasks.value.find((t) => t.repoFullName === repo.fullName && t.status === 'pending');
-  if (!task) {
+  const task = getActiveTask(repo.fullName);
+  if (!task || task.status !== 'pending') {
     await refreshTasks();
     return;
   }
   await apiFetch(`${apiBase}/tasks/${task.id}`, { method: 'DELETE' });
   await refreshTasks();
+}
+
+function getActiveTask(repoFullName: string) {
+  return activeTasks.value.find((task) => task.repoFullName === repoFullName);
+}
+
+function syncActionLabel(repoFullName: string): string {
+  if (runningRepoNames.value.has(repoFullName)) return '同步中';
+  if (queuedRepoNames.value.has(repoFullName)) return '取消排队';
+  return '手动同步';
+}
+
+function syncActionIcon(repoFullName: string): string {
+  if (runningRepoNames.value.has(repoFullName)) return 'lucide:loader-circle';
+  if (queuedRepoNames.value.has(repoFullName)) return 'lucide:circle-x';
+  return 'lucide:play-circle';
+}
+
+function syncActionClass(repoFullName: string): string {
+  if (runningRepoNames.value.has(repoFullName)) return 'btn-info';
+  if (queuedRepoNames.value.has(repoFullName)) return 'btn-warning';
+  return 'btn-primary';
+}
+
+function syncActionTip(repoFullName: string): string {
+  if (runningRepoNames.value.has(repoFullName)) return '当前任务正在执行';
+  if (queuedRepoNames.value.has(repoFullName)) return '移出同步队列';
+  return '立即同步这个仓库';
+}
+
+async function handleSyncAction(repo: Repo) {
+  if (runningRepoNames.value.has(repo.fullName)) return;
+  if (queuedRepoNames.value.has(repo.fullName)) {
+    await removeFromQueue(repo);
+    return;
+  }
+  await syncNow(repo);
 }
 
 async function setupWebhook(repo: Repo) {
@@ -357,20 +396,15 @@ onUnmounted(() => {
                   <!-- Action buttons -->
                   <div class="flex items-center gap-1 shrink-0">
                     <!-- Queue toggle -->
-                    <div
-                      class="tooltip tooltip-left"
-                      :data-tip="queuedRepoNames.has(repo.fullName) ? '移出同步队列' : '加入同步队列'"
-                    >
+                    <div class="tooltip tooltip-left" :data-tip="syncActionTip(repo.fullName)">
                       <button
-                        class="btn btn-ghost btn-xs btn-circle"
-                        :class="queuedRepoNames.has(repo.fullName) ? 'text-warning' : 'text-success'"
-                        :disabled="!repo.enabled"
-                        @click="queuedRepoNames.has(repo.fullName) ? removeFromQueue(repo) : syncNow(repo)"
+                        class="btn btn-xs gap-1"
+                        :class="syncActionClass(repo.fullName)"
+                        :disabled="!repo.enabled || runningRepoNames.has(repo.fullName)"
+                        @click="handleSyncAction(repo)"
                       >
-                        <Icon
-                          :icon="queuedRepoNames.has(repo.fullName) ? 'lucide:circle-x' : 'lucide:play-circle'"
-                          class="w-4 h-4"
-                        />
+                        <Icon :icon="syncActionIcon(repo.fullName)" class="w-4 h-4" :class="{ 'animate-spin': runningRepoNames.has(repo.fullName) }" />
+                        {{ syncActionLabel(repo.fullName) }}
                       </button>
                     </div>
 

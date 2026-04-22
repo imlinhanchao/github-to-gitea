@@ -1,7 +1,9 @@
 import { ref, computed } from 'vue';
-import type { AuthStatus, Repo, SyncTask } from '../types';
+import type { ActiveTask, AuthStatus, Repo, SyncTask, TaskPage, TaskSummary } from '../types';
 
 const defaultApiRoot = '/api';
+const defaultTaskPage = 1;
+const defaultTaskPageSize = 50;
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
 
 export const apiRoot: string = env?.VITE_API_BASE ?? defaultApiRoot;
@@ -15,6 +17,17 @@ export const authenticated = ref<boolean | null>(null);
 export const authUsername = ref<string | null>(null);
 export const repos = ref<Repo[]>([]);
 export const tasks = ref<SyncTask[]>([]);
+export const activeTasks = ref<ActiveTask[]>([]);
+export const taskPage = ref(defaultTaskPage);
+export const taskPageSize = ref(defaultTaskPageSize);
+export const taskTotal = ref(0);
+export const taskPageCount = ref(1);
+export const taskSummary = ref<TaskSummary>({
+  pending: 0,
+  running: 0,
+  done: 0,
+  failed: 0,
+});
 
 export const webhookUrl = computed(() => {
   if (apiRoot.startsWith('http://') || apiRoot.startsWith('https://')) {
@@ -23,14 +36,16 @@ export const webhookUrl = computed(() => {
   return new URL(`${apiRoot}/sync/webhook/github`, window.location.href).toString();
 });
 
-export const hasActiveTasks = computed(() =>
-  tasks.value.some((t) => t.status === 'pending' || t.status === 'running'),
-);
+export const hasActiveTasks = computed(() => taskSummary.value.pending > 0 || taskSummary.value.running > 0);
 
-export const hasFailedTasks = computed(() => tasks.value.some((t) => t.status === 'failed'));
+export const hasFailedTasks = computed(() => taskSummary.value.failed > 0);
 
 export const queuedRepoNames = computed(
-  () => new Set(tasks.value.filter((t) => t.status === 'pending' || t.status === 'running').map((t) => t.repoFullName)),
+  () => new Set(activeTasks.value.map((task) => task.repoFullName)),
+);
+
+export const runningRepoNames = computed(
+  () => new Set(activeTasks.value.filter((task) => task.status === 'running').map((task) => task.repoFullName)),
 );
 
 const STATUS_ORDER: Record<SyncTask['status'], number> = { running: 0, failed: 1, pending: 2, done: 3 };
@@ -58,6 +73,16 @@ function redirectToLogin(): void {
   if (window.location.hash !== '#/login') {
     window.location.hash = '/login';
   }
+}
+
+function applyTaskPage(data: TaskPage): void {
+  tasks.value = data.items;
+  activeTasks.value = data.activeItems;
+  taskPage.value = data.page;
+  taskPageSize.value = data.pageSize;
+  taskTotal.value = data.total;
+  taskPageCount.value = data.pageCount;
+  taskSummary.value = data.summary;
 }
 
 export async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
@@ -109,11 +134,30 @@ export async function refresh(): Promise<void> {
   repos.value = (await res.json()) as Repo[];
 }
 
-export async function refreshTasks(): Promise<void> {
-  const res = await apiFetch(`${apiBase}/tasks?limit=50`);
+interface RefreshTaskOptions {
+  page?: number;
+  pageSize?: number;
+}
+
+export async function refreshTasks(options: RefreshTaskOptions = {}): Promise<void> {
+  const nextPage = options.page ?? taskPage.value;
+  const nextPageSize = options.pageSize ?? taskPageSize.value;
+  const params = new URLSearchParams({
+    page: String(nextPage),
+    pageSize: String(nextPageSize),
+  });
+  const res = await apiFetch(`${apiBase}/tasks?${params.toString()}`);
   if (res.ok) {
-    tasks.value = (await res.json()) as SyncTask[];
+    applyTaskPage((await res.json()) as TaskPage);
   }
+}
+
+export async function setTaskPage(page: number): Promise<void> {
+  await refreshTasks({ page });
+}
+
+export async function setTaskPageSize(pageSize: number): Promise<void> {
+  await refreshTasks({ page: defaultTaskPage, pageSize });
 }
 
 export function startPolling(): void {

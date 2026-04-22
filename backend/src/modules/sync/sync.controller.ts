@@ -10,6 +10,9 @@ import { SyncService } from './sync.service';
 
 @Controller('sync')
 export class SyncController {
+  private static readonly DEFAULT_PAGE = 1;
+  private static readonly DEFAULT_PAGE_SIZE = 50;
+
   constructor(private readonly syncService: SyncService) {}
 
   @Post('account')
@@ -62,6 +65,11 @@ export class SyncController {
     return this.syncService.syncOne(id);
   }
 
+  @Post('repositories/run-all')
+  runAll() {
+    return this.syncService.syncAll();
+  }
+
   @Post('repositories/:id/webhook')
   @HttpCode(204)
   setupWebhook(@Param('id', ParseIntPipe) id: number, @Body() dto: SetupWebhookDto) {
@@ -69,9 +77,11 @@ export class SyncController {
   }
 
   @Get('tasks')
-  listTasks(@Query('limit') limit?: string) {
-    const parsed = limit ? parseInt(limit, 10) : undefined;
-    return this.syncService.listTasks(Number.isFinite(parsed) ? parsed : undefined);
+  listTasks(@Query('page') page?: string, @Query('pageSize') pageSize?: string) {
+    return this.syncService.listTasks(
+      this.parsePositiveInt(page, SyncController.DEFAULT_PAGE),
+      this.parsePositiveInt(pageSize, SyncController.DEFAULT_PAGE_SIZE),
+    );
   }
 
   @Post('tasks/:id/retry')
@@ -93,5 +103,13 @@ export class SyncController {
   @Post('tasks/retry-failed')
   retryAllFailed() {
     return this.syncService.retryAllFailed();
+  }
+
+  private parsePositiveInt(value: string | undefined, fallback: number): number {
+    const parsed = value ? parseInt(value, 10) : NaN;
+    if (!Number.isFinite(parsed) || parsed < 1) {
+      return fallback;
+    }
+    return parsed;
   }
 }

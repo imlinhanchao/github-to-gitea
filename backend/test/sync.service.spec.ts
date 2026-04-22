@@ -76,6 +76,26 @@ describe('SyncService', () => {
     expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ webhookConfigured: true }));
   });
 
+  it('syncs all enabled repos and skips active tasks', async () => {
+    const activeRepo = { id: 1, fullName: 'foo/active', enabled: true } as any;
+    const idleRepo = { id: 2, fullName: 'foo/idle', enabled: true } as any;
+    const repo = {
+      find: jest.fn().mockResolvedValue([activeRepo, idleRepo]),
+    } as any;
+    const queueService = {
+      listActiveTasks: jest.fn().mockResolvedValue([{ id: 99, repoFullName: 'foo/active', status: 'running' }]),
+      enqueue: jest.fn().mockResolvedValue({ id: 100 } as any),
+    } as any;
+
+    const service = new SyncService(repo, mockStarredAccountRepo, { isConfigured: () => true } as any, {} as any, {} as any, queueService);
+    const tasks = await service.syncAll();
+
+    expect(repo.find).toHaveBeenCalledWith({ where: { enabled: true }, order: { fullName: 'ASC' } });
+    expect(queueService.enqueue).toHaveBeenCalledTimes(1);
+    expect(queueService.enqueue).toHaveBeenCalledWith('foo/idle', expect.any(Function));
+    expect(tasks).toHaveLength(1);
+  });
+
   it('syncs starred account repos and stars them in gitea', async () => {
     const syncEntity = {
       id: 10,

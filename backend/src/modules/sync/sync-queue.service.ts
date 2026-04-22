@@ -8,8 +8,32 @@ interface QueueItem {
   fn: () => Promise<unknown>;
 }
 
+export interface TaskPage {
+  items: SyncTaskEntity[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+  summary: Record<SyncTaskEntity['status'], number>;
+  activeItems: ActiveTaskItem[];
+}
+
+interface TaskPageOptions {
+  page: number;
+  pageSize: number;
+}
+
+export interface ActiveTaskItem {
+  id: number;
+  repoFullName: string;
+  status: Extract<SyncTaskEntity['status'], 'pending' | 'running'>;
+}
+
 @Injectable()
 export class SyncQueueService implements OnModuleInit {
+  private static readonly DEFAULT_PAGE = 1;
+  private static readonly DEFAULT_PAGE_SIZE = 50;
+  private static readonly MAX_PAGE_SIZE = 200;
   private readonly queue: QueueItem[] = [];
   private running = false;
 
@@ -39,8 +63,34 @@ export class SyncQueueService implements OnModuleInit {
     return task;
   }
 
-  async listTasks(limit = 50): Promise<SyncTaskEntity[]> {
-    return this.taskRepo.find({ order: { createdAt: 'DESC' }, take: limit });
+  async listTasks(options?: Partial<TaskPageOptions>): Promise<TaskPage> {
+    const requestedPage = this.normalizePositiveInt(options?.page, SyncQueueService.DEFAULT_PAGE);
+    const rawPageSize = this.normalizePositiveInt(options?.pageSize, SyncQueueService.DEFAULT_PAGE_SIZE);
+    const pageSize = Math.min(rawPageSize, SyncQueueService.MAX_PAGE_SIZE);
+    const total = await this.taskRepo.count();
+    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    const page = Math.min(requestedPage, pageCount);
+    const skip = (page - 1) * pageSize;
+    const [items, grouped, activeItems] = await Promise.all([
+      this.taskRepo.find({ order: { createdAt: 'DESC' }, skip, take: pageSize }),
+      this.taskRepo
+        .createQueryBuilder('task')
+        .select('task.status', 'status')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('task.status')
+        .getRawMany<{ status: SyncTaskEntity['status']; count: string }>(),
+      this.listActiveItems(),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+      pageCount,
+      summary: this.buildSummary(grouped),
+      activeItems,
+    };
   }
 
   async getTask(id: number): Promise<SyncTaskEntity> {
@@ -65,6 +115,45 @@ export class SyncQueueService implements OnModuleInit {
 
   async listFailedTasks(): Promise<SyncTaskEntity[]> {
     return this.taskRepo.find({ where: { status: 'failed' }, order: { createdAt: 'DESC' } });
+  }
+
+  async listActiveTasks(): Promise<ActiveTaskItem[]> {
+    return this.listActiveItems();
+  }
+
+  private normalizePositiveInt(value: number | undefined, fallback: number): number {
+    if (!Number.isFinite(value) || !value || value < 1) {
+      return fallback;
+    }
+    return Math.floor(value);
+  }
+
+  private buildSummary(grouped: Array<{ status: SyncTaskEntity['status']; count: string }>): Record<SyncTaskEntity['status'], number> {
+    const summary: Record<SyncTaskEntity['status'], number> = {
+      pending: 0,
+      running: 0,
+      done: 0,
+      failed: 0,
+    };
+
+    for (const item of grouped) {
+      summary[item.status] = Number(item.count);
+    }
+
+    return summary;
+  }
+
+  private async listActiveItems(): Promise<ActiveTaskItem[]> {
+    const items = await this.taskRepo.find({
+      where: [{ status: 'pending' }, { status: 'running' }],
+      order: { createdAt: 'DESC' },
+    });
+
+    return items.map((item) => ({
+      id: item.id,
+      repoFullName: item.repoFullName,
+      status: item.status as ActiveTaskItem['status'],
+    }));
   }
 
   private async processNext(): Promise<void> {
