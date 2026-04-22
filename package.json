@@ -4,6 +4,9 @@
   "description": "A tool to sync repositories from GitHub to Gitea.",
   "main": "index.js",
   "scripts": {
+    "ci": "npm run ci:backend && npm run ci:frontend",
+    "ci:backend": "cd backend && npm ci",
+    "ci:frontend": "cd frontend && npm ci",
     "build": "npm run build:backend && npm run build:frontend",
     "build:backend": "cd backend && npm install && npm run build",
     "build:frontend": "cd frontend && npm install && npm run build"
