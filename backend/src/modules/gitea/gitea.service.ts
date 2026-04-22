@@ -59,6 +59,7 @@ esac
         cwd,
         stdio: ['ignore', 'ignore', 'pipe'],
         env: { ...process.env, ...(env || {}) },
+        windowsHide: true,
       });
       p.stderr.on('data', (chunk) => {
         stderr += chunk.toString();
