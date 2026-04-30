@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RepositorySyncEntity } from '../../entities/repository-sync.entity';
 import { StarredAccountEntity } from '../../entities/starred-account.entity';
+import { TrackedAccountEntity } from '../../entities/tracked-account.entity';
 import { SyncTaskEntity } from '../../entities/sync-task.entity';
 import { GithubService } from '../github/github.service';
 import { GiteaService } from '../gitea/gitea.service';
@@ -12,7 +13,7 @@ import { SyncQueueService } from './sync-queue.service';
 import { WebhookController } from './webhook.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([RepositorySyncEntity, SyncTaskEntity, StarredAccountEntity]), AppConfigModule],
+  imports: [TypeOrmModule.forFeature([RepositorySyncEntity, SyncTaskEntity, StarredAccountEntity, TrackedAccountEntity]), AppConfigModule],
   controllers: [SyncController, WebhookController],
   providers: [SyncService, SyncQueueService, GithubService, GiteaService],
 })
