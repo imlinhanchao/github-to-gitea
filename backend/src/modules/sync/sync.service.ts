@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
 import { RepositorySyncEntity } from '../../entities/repository-sync.entity';
 import { StarredAccountEntity } from '../../entities/starred-account.entity';
+import { TrackedAccountEntity } from '../../entities/tracked-account.entity';
 import { SyncTaskEntity } from '../../entities/sync-task.entity';
 import { RuntimeConfigService } from '../../config/config.service';
 import { GithubRepository, GithubService } from '../github/github.service';
@@ -17,6 +18,8 @@ export class SyncService implements OnModuleInit {
     private readonly repositorySyncRepo: Repository<RepositorySyncEntity>,
     @InjectRepository(StarredAccountEntity)
     private readonly starredAccountRepo: Repository<StarredAccountEntity>,
+    @InjectRepository(TrackedAccountEntity)
+    private readonly trackedAccountRepo: Repository<TrackedAccountEntity>,
     private readonly configService: RuntimeConfigService,
     private readonly githubService: GithubService,
     private readonly giteaService: GiteaService,
@@ -50,7 +53,24 @@ export class SyncService implements OnModuleInit {
 
   async addAccount(account: string, webhookUrl?: string): Promise<SyncTaskEntity[]> {
     this.requireConfigured();
-    const repos = await this.githubService.listReposForAccount(account);
+    const normalizedAccount = account.trim();
+    const repos = await this.githubService.listReposForAccount(normalizedAccount);
+
+    // Upsert the tracked account record
+    let trackedAccount = await this.trackedAccountRepo.findOne({ where: { account: normalizedAccount } });
+    if (!trackedAccount) {
+      trackedAccount = this.trackedAccountRepo.create({
+        account: normalizedAccount,
+        knownRepos: repos.map((r) => r.full_name),
+        webhookUrl: webhookUrl ?? null,
+        lastCheckedAt: null,
+      });
+    } else {
+      trackedAccount.knownRepos = repos.map((r) => r.full_name);
+      trackedAccount.webhookUrl = webhookUrl ?? trackedAccount.webhookUrl;
+    }
+    await this.trackedAccountRepo.save(trackedAccount);
+
     const tasks: SyncTaskEntity[] = [];
     for (const repo of repos) {
       tasks.push(await this.enqueueUpsertAndSync(repo.full_name, webhookUrl));
@@ -226,6 +246,29 @@ export class SyncService implements OnModuleInit {
         starredAccount.knownStarredRepos = repos.map((r) => r.full_name);
         starredAccount.lastCheckedAt = new Date().toISOString();
         await this.starredAccountRepo.save(starredAccount);
+      } catch {
+        // Ignore errors per-account to allow others to proceed
+      }
+    }
+  }
+
+  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
+  async checkNewAccountRepos(): Promise<void> {
+    if (!this.configService.isConfigured()) {
+      return;
+    }
+    const accounts = await this.trackedAccountRepo.find();
+    for (const trackedAccount of accounts) {
+      try {
+        const repos = await this.githubService.listReposForAccount(trackedAccount.account);
+        const knownSet = new Set(trackedAccount.knownRepos);
+        const newRepos = repos.filter((r) => !knownSet.has(r.full_name));
+        for (const repo of newRepos) {
+          await this.enqueueUpsertAndSync(repo.full_name, trackedAccount.webhookUrl ?? undefined);
+        }
+        trackedAccount.knownRepos = repos.map((r) => r.full_name);
+        trackedAccount.lastCheckedAt = new Date().toISOString();
+        await this.trackedAccountRepo.save(trackedAccount);
       } catch {
         // Ignore errors per-account to allow others to proceed
       }
